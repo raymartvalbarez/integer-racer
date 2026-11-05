@@ -55,11 +55,11 @@
     return norm(p.name) + '-g' + String(p.grade);
   }
   function norm(s) {
+    // Case- and space-insensitive: "Ray Mart" / "raymart" / "RAY  MART" → same key
     return (
       String(s || '')
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
+        .replace(/[^a-z0-9]+/g, '')
         .slice(0, 48) || 'anon'
     );
   }
@@ -164,7 +164,16 @@
         if (prev && prev.name) {
           best.total = Math.max(Number(prev.total) || 0, Number(entry.total) || 0);
           best.bestLevel = Math.max(Number(prev.bestLevel) || 0, Number(entry.bestLevel) || 0);
-          best.attempts = Math.max(Number(prev.attempts) || 0, Number(entry.attempts) || 0);
+          best.attempts = Math.min(MAX_ATTEMPTS, Math.max(Number(prev.attempts) || 0, Number(entry.attempts) || 0));
+          // If remote already used both tries, keep best total but do not accept a fresh higher attempt count beyond 2
+          if ((Number(prev.attempts) || 0) >= MAX_ATTEMPTS) {
+            best.attempts = MAX_ATTEMPTS;
+            best.total = Math.max(Number(prev.total) || 0, Number(entry.total) || 0);
+            // Prefer existing attemptScores when already maxed
+            if (Array.isArray(prev.attemptScores) && prev.attemptScores.length >= MAX_ATTEMPTS) {
+              best.attemptScores = prev.attemptScores.slice(0, MAX_ATTEMPTS);
+            }
+          }
           const scores = []
             .concat(Array.isArray(prev.attemptScores) ? prev.attemptScores : [])
             .concat(Array.isArray(entry.attemptScores) ? entry.attemptScores : [])
@@ -179,6 +188,7 @@
         }
       } catch (e) {}
       if (Number(best.total) > MAX_PLAUSIBLE) return false;
+      best.attempts = Math.min(MAX_ATTEMPTS, Math.max(0, Number(best.attempts) || 0));
       await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -241,7 +251,10 @@
     return BASE_SPEED[level] + Math.min(0.35, (qIndex || 0) * 0.012);
   }
 
-  function startAttempt() {
+  async function startAttempt() {
+    // Re-check device + remote so a wiped phone cannot start a 3rd try
+    const rec = await fetchRemoteRecord();
+    mergeRemote(rec);
     if (progress.attemptsUsed >= MAX_ATTEMPTS) {
       paintLobby();
       return;

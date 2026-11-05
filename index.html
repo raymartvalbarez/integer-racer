@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#062a1f">
+<title>Integer Racer · Bago NHS</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#062a1f;color:#fff;overflow:hidden}
+body{display:flex;flex-direction:column}
+header.app{flex:0 0 auto;padding:10px 14px;background:#041f17;display:flex;align-items:center;gap:10px}
+.logo{width:36px;height:36px;border-radius:50%;background:#f5c518;color:#062a1f;display:grid;place-items:center;font-weight:900}
+header h1{font-size:1.05rem;margin:0;line-height:1.15}
+header small{display:block;opacity:.75;font-weight:400;font-size:.72rem}
+.screen{display:none;flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+.screen.active{display:flex;flex-direction:column}
+.card{background:#fff;color:#1a1a1a;border-radius:14px;padding:16px;margin:12px;max-width:480px;width:calc(100% - 24px);align-self:center}
+label{display:block;font-weight:700;margin:10px 0 4px;font-size:.9rem}
+input,select{width:100%;padding:12px;font-size:1rem;border:1px solid #bbb;border-radius:8px;background:#fff}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+button.primary{width:100%;margin-top:14px;padding:14px;font-size:1.05rem;background:#f5c518;border:0;border-radius:10px;font-weight:800;color:#062a1f}
+button.secondary{width:100%;margin-top:8px;padding:12px;font-size:.95rem;background:#e8f5e9;border:0;border-radius:10px;font-weight:700;color:#062a1f}
+button.ghost{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;padding:10px 14px;border-radius:8px;font-weight:700}
+.note{font-size:.8rem;opacity:.85;line-height:1.35;margin:10px 0 0}
+.muted{opacity:.7;text-align:center;padding:16px}
+#level-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+#level-btns button.lvl{padding:14px;border:0;border-radius:10px;background:#2e7d32;color:#fff;font-weight:800}
+#level-btns button.lvl.locked{background:#9e9e9e}
+#player-label{font-size:.85rem;opacity:.9;margin-top:4px}
+/* Game HUD */
+#screen-game{overflow:hidden;background:#062a1f}
+#hud{flex:0 0 auto;padding:8px 10px;background:#041f17}
+#hud-top{display:flex;justify-content:space-between;font-weight:700;font-size:.85rem;gap:6px}
+#hud-prompt{margin-top:6px;background:#f5c518;color:#062a1f;font-weight:900;font-size:1.15rem;text-align:center;padding:8px 6px;border-radius:8px;min-height:42px}
+#game-wrap{flex:1;position:relative;min-height:0}
+#game{display:block;width:100%;height:100%;touch-action:none;background:#87c6ef}
+#controls{flex:0 0 auto;display:flex;gap:8px;padding:8px 10px 12px;background:#041f17;align-items:center}
+#controls button{flex:1;padding:16px;font-size:1.2rem;font-weight:900;border:0;border-radius:12px;background:#f5c518;color:#062a1f}
+#controls .tilt{flex:0 0 auto;font-size:.75rem;display:flex;align-items:center;gap:4px}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:8px 6px;border-bottom:1px solid #ddd;text-align:left}
+th{background:#e8f5e9}
+.tabs{display:flex;gap:6px;margin:8px 0}
+.tabs button{flex:1;padding:8px;border-radius:8px;border:0;background:#c8e6c9;font-weight:700}
+.tabs button.on{background:#2e7d32;color:#fff}
+#sum-sync{font-size:.8rem;opacity:.8;margin-top:8px}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="logo">IR</div>
+  <h1>Integer Racer<small>Bago National High School · Roxas City · ADM</small></h1>
+</header>
+
+<!-- START -->
+<section id="screen-start" class="screen active">
+  <div class="card">
+    <strong>Drive. Hit the correct integer. Climb the board.</strong>
+    <label for="inp-name">Full name</label>
+    <input id="inp-name" maxlength="40" placeholder="e.g. Juan Dela Cruz" autocomplete="name">
+    <div class="row">
+      <div>
+        <label for="inp-grade">Grade</label>
+        <select id="inp-grade"><option value="11">Grade 11</option><option value="12">Grade 12</option></select>
+      </div>
+      <div>
+        <label for="inp-section">Section (optional)</label>
+        <input id="inp-section" maxlength="20" placeholder="e.g. HUMSS">
+      </div>
+    </div>
+    <button class="primary" id="btn-play">Continue</button>
+    <button class="secondary" id="btn-go-board">Leaderboard</button>
+    <p class="note">5 levels · 20 items each · Speed &amp; points rise each level · Need 12/20 to unlock the next · 3 lives per level · Wrong hits never show the answer.</p>
+    <div id="levels-wrap" style="display:none;margin-top:12px">
+      <div id="player-label"></div>
+      <div id="level-btns"></div>
+    </div>
+  </div>
+</section>
+
+<!-- GAME -->
+<section id="screen-game" class="screen">
+  <div id="hud">
+    <div id="hud-top">
+      <span id="hud-level">L1</span>
+      <span id="hud-q">1/20</span>
+      <span>Score <span id="hud-score">0</span></span>
+      <span id="hud-lives">❤❤❤</span>
+    </div>
+    <div id="hud-prompt">—</div>
+  </div>
+  <div id="game-wrap"><canvas id="game"></canvas></div>
+  <div id="controls">
+    <button type="button" id="btn-left" aria-label="Left">◀</button>
+    <label class="tilt"><input type="checkbox" id="chk-tilt"> Tilt</label>
+    <button type="button" id="btn-right" aria-label="Right">▶</button>
+  </div>
+</section>
+
+<!-- SUMMARY -->
+<section id="screen-summary" class="screen">
+  <div class="card">
+    <h2 id="sum-title" style="margin:0 0 8px">Level done</h2>
+    <p id="sum-detail"></p>
+    <p id="sum-sync"></p>
+    <button class="primary" id="btn-next">Next Level</button>
+    <button class="secondary" id="btn-retry">Try Again</button>
+    <button class="secondary" id="btn-menu">Back to Levels</button>
+  </div>
+</section>
+
+<!-- LEADERBOARD -->
+<section id="screen-board" class="screen">
+  <div class="card" style="max-width:560px">
+    <strong>Leaderboard · Grade 11 &amp; 12</strong>
+    <div class="tabs">
+      <select id="board-filter" style="flex:1">
+        <option value="all">All</option>
+        <option value="11">Grade 11</option>
+        <option value="12">Grade 12</option>
+      </select>
+    </div>
+    <div style="overflow:auto;max-height:60vh">
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Grade</th><th>Points</th><th>Best</th></tr></thead>
+        <tbody id="board-body"></tbody>
+      </table>
+    </div>
+    <button class="secondary" id="btn-board-back">Back</button>
+    <p class="note">One best score kept per name + grade. Refresh after classmates finish a level.</p>
+  </div>
+</section>
+
+<script src="questions.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

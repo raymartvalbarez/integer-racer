@@ -7,3 +7,6 @@ Temple Run–style integer practice for Grade 11–12 ADM. Live: https://raymart
 - Name from ADM Portal Learners master list (Grade → Section → Name)
 - 2 attempts per learner; highest score on shared leaderboard
 - Wrong answers never reveal the correct choice
+
+- Web Audio BGM/SFX (no audio files); header 🔊 toggle remembered in localStorage
+- Learners from ADM Portal Apps Script `action=config` (Learners sheet)

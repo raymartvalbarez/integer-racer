@@ -21,6 +21,232 @@
   const GATE_DIST = GATE_SPAWN - GATE_HIT_Z;
   const MAX_PLAUSIBLE = 5000;
 
+
+  // ---- Web Audio music + SFX (no files; unlock on first tap) ----
+  const Sound = (function () {
+    let ctx = null;
+    let master = null;
+    let musicGain = null;
+    let sfxGain = null;
+    let unlocked = false;
+    let enabled = localStorage.getItem('ir-sound') !== '0';
+    let musicNodes = [];
+    let musicTimer = null;
+    let humOsc = null;
+    let humGain = null;
+    let level = 1;
+
+    function ensure() {
+      if (ctx) return ctx;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = enabled ? 0.7 : 0;
+      master.connect(ctx.destination);
+      musicGain = ctx.createGain();
+      musicGain.gain.value = 0.22;
+      musicGain.connect(master);
+      sfxGain = ctx.createGain();
+      sfxGain.gain.value = 0.55;
+      sfxGain.connect(master);
+      return ctx;
+    }
+
+    function unlock() {
+      const c = ensure();
+      if (!c) return;
+      if (c.state === 'suspended') c.resume().catch(() => {});
+      if (!unlocked) {
+        unlocked = true;
+        // silent blip to satisfy mobile gesture unlock
+        const o = c.createOscillator();
+        const g = c.createGain();
+        g.gain.value = 0.0001;
+        o.connect(g);
+        g.connect(master);
+        o.start();
+        o.stop(c.currentTime + 0.01);
+        if (enabled) startMusic(level);
+      }
+    }
+
+    function setEnabled(on) {
+      enabled = !!on;
+      localStorage.setItem('ir-sound', enabled ? '1' : '0');
+      ensure();
+      if (master) master.gain.setTargetAtTime(enabled ? 0.7 : 0, ctx.currentTime, 0.05);
+      if (enabled && unlocked) startMusic(level);
+      else stopMusic();
+      paintBtn();
+    }
+
+    function paintBtn() {
+      const b = document.getElementById('btn-sound');
+      if (!b) return;
+      b.textContent = enabled ? '🔊 On' : '🔇 Off';
+      b.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    }
+
+    function tone(freq, dur, type, gain, when) {
+      const c = ensure();
+      if (!c || !enabled || !unlocked) return;
+      const t0 = when != null ? when : c.currentTime;
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = type || 'sine';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gain || 0.3, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g);
+      g.connect(sfxGain);
+      o.start(t0);
+      o.stop(t0 + dur + 0.02);
+    }
+
+    function ding() {
+      const c = ensure();
+      if (!c) return;
+      const t = c.currentTime;
+      tone(880, 0.12, 'sine', 0.35, t);
+      tone(1320, 0.18, 'sine', 0.25, t + 0.06);
+    }
+
+    function buzz() {
+      const c = ensure();
+      if (!c) return;
+      const t = c.currentTime;
+      tone(180, 0.22, 'sawtooth', 0.22, t);
+      tone(120, 0.28, 'square', 0.15, t + 0.05);
+    }
+
+    function levelUp() {
+      const c = ensure();
+      if (!c) return;
+      const t = c.currentTime;
+      [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.18, 'triangle', 0.28, t + i * 0.1));
+    }
+
+    function stopMusic() {
+      if (musicTimer) {
+        clearInterval(musicTimer);
+        musicTimer = null;
+      }
+      musicNodes.forEach((n) => {
+        try {
+          n.stop();
+        } catch (e) {}
+      });
+      musicNodes = [];
+      if (humOsc) {
+        try {
+          humOsc.stop();
+        } catch (e) {}
+        humOsc = null;
+        humGain = null;
+      }
+    }
+
+    function startMusic(lv) {
+      level = lv || 1;
+      const c = ensure();
+      if (!c || !enabled || !unlocked) return;
+      stopMusic();
+      // Engine hum (optional low drone)
+      humOsc = c.createOscillator();
+      humGain = c.createGain();
+      humOsc.type = 'sawtooth';
+      humOsc.frequency.value = 55 + level * 4;
+      humGain.gain.value = 0.04;
+      humOsc.connect(humGain);
+      humGain.connect(musicGain);
+      humOsc.start();
+
+      // Upbeat arpeggio loop; tempo rises with level
+      const bpm = 96 + (level - 1) * 10; // 96 → 136
+      const step = 60 / bpm / 2; // eighth notes
+      const scale = [0, 3, 5, 7, 10, 12, 15, 17]; // minor pent-ish
+      const root = 220;
+      let i = 0;
+      function beat() {
+        if (!enabled || !unlocked || !ctx) return;
+        const t = ctx.currentTime;
+        const note = scale[i % scale.length];
+        const freq = root * Math.pow(2, note / 12);
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = i % 4 === 0 ? 'square' : 'triangle';
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + step * 1.6);
+        o.connect(g);
+        g.connect(musicGain);
+        o.start(t);
+        o.stop(t + step * 2);
+        musicNodes.push(o);
+        // kick on downs
+        if (i % 4 === 0) {
+          const k = ctx.createOscillator();
+          const kg = ctx.createGain();
+          k.type = 'sine';
+          k.frequency.setValueAtTime(140, t);
+          k.frequency.exponentialRampToValueAtTime(50, t + 0.15);
+          kg.gain.setValueAtTime(0.25, t);
+          kg.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+          k.connect(kg);
+          kg.connect(musicGain);
+          k.start(t);
+          k.stop(t + 0.2);
+          musicNodes.push(k);
+        }
+        // prune stopped
+        if (musicNodes.length > 40) musicNodes = musicNodes.slice(-20);
+        i++;
+      }
+      beat();
+      musicTimer = setInterval(beat, step * 1000);
+    }
+
+    function setLevel(lv) {
+      if (level === lv) return;
+      level = lv;
+      if (enabled && unlocked) startMusic(level);
+    }
+
+    function toggle() {
+      unlock();
+      setEnabled(!enabled);
+    }
+
+    // Unlock on first user gesture anywhere
+    ['pointerdown', 'touchstart', 'keydown'].forEach((ev) => {
+      window.addEventListener(
+        ev,
+        () => {
+          unlock();
+        },
+        { once: false, passive: true }
+      );
+    });
+
+    return {
+      unlock,
+      toggle,
+      setEnabled,
+      ding,
+      buzz,
+      levelUp,
+      setLevel,
+      startMusic,
+      stopMusic,
+      paintBtn,
+      isEnabled: () => enabled,
+    };
+  })();
+
+
   const $ = (id) => document.getElementById(id);
   const screens = {
     start: $('screen-start'),
@@ -525,6 +751,8 @@
         totalCorrect: 0,
         active: true,
       };
+      Sound.unlock();
+      Sound.startMusic(1);
       startLevel(1);
     })();
   }
@@ -534,6 +762,8 @@
       alert('Start an attempt first.');
       return;
     }
+    Sound.setLevel(level);
+    if (level > 1) Sound.levelUp();
     const questions = IRQuestions.generateLevel(level, ITEMS);
     run = {
       level,
@@ -594,11 +824,13 @@
       const gained = BASE_PTS[run.level] + Math.floor(run.streak / 3) * 5;
       run.score += gained;
       run.flash = { kind: 'ok', t: 0.55, gained };
+      Sound.ding();
     } else {
       run.streak = 0;
       run.lives--;
       run.flash = { kind: 'bad', t: 0.55 };
       shakeT = 0.45;
+      Sound.buzz();
       if (run.lives <= 0) {
         run.endedByLives = true;
         endLevel(false);
@@ -665,6 +897,7 @@
   async function finishAttempt() {
     if (!attempt || !attempt.active) return;
     attempt.active = false;
+    Sound.stopMusic();
     const score = attempt.score;
     const bestLevel = attempt.bestLevel;
     progress.attemptsUsed = Math.max(progress.attemptsUsed + 1, attempt.num);
@@ -834,8 +1067,7 @@
     hint.className = 'note';
     hint.textContent =
       left +
-      ' try' +
-      (left > 1 ? 's' : '') +
+      (left === 1 ? ' try' : ' tries') +
       ' left · One attempt = Levels 1→5 (fresh lives each level) · Highest score counts';
     box.appendChild(hint);
   }
@@ -899,6 +1131,7 @@
   };
 
   window.__IR_TEST__ = {
+    Sound,
     ITEM_SEC,
     GATE_SPAWN,
     GATE_HIT_Z,
@@ -914,6 +1147,9 @@
   };
 
   loadLearners();
+  Sound.paintBtn();
+  const btnSound = $('btn-sound');
+  if (btnSound) btnSound.onclick = () => Sound.toggle();
   window.addEventListener('resize', () => {
     if (screens.game.classList.contains('active')) resize();
   });

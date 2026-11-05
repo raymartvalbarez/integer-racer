@@ -1217,6 +1217,17 @@
   // Auto-demo entry for headless tests
   if (DEMO) {
     $('load-status').textContent = 'Demo mode — scores not saved.';
+    // Kick into gameplay once learners (or timeout) settle — no real attempt used
+    const kick = () => {
+      try { window.__IR_TEST__.forceDemoStart(1); } catch (e) {}
+    };
+    const waitLearners = setInterval(() => {
+      if (learners && learners.length) {
+        clearInterval(waitLearners);
+        kick();
+      }
+    }, 200);
+    setTimeout(() => { clearInterval(waitLearners); kick(); }, 4000);
   }
 
   loadLearners();

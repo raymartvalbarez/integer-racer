@@ -5,20 +5,21 @@
   const API_NS = 'bnhs-iracer-nov2026';
   const API = 'https://mantledb.sh/v2/' + API_NS;
   const API_EXPORT = 'https://mantledb.sh/v2/export/' + API_NS;
-  const GAS_URL = '';
+  // Same Apps Script endpoint as ADM Portal (read-only action=config → learners)
+  const ADM_API =
+    'https://script.google.com/macros/s/AKfycbwGMSP8NmPT4GYMJZTw4qruizfFd5wzORZHZRM-HOUJOSQyyg3Gx20L5MEWsqT5EFdl-w/exec';
 
   const LEVELS = 5;
   const ITEMS = 20;
   const LIVES = 3;
-  const UNLOCK_MIN = 12;
   const MAX_ATTEMPTS = 2;
   const BASE_PTS = [0, 10, 20, 30, 40, 50];
-  // ~45% slower than original L1; L5 ≈ former L2–L3. Gentle rise only.
-  const BASE_SPEED = [0, 1.05, 1.25, 1.45, 1.65, 1.85];
-  const GATE_SPAWN = 1.45; // farther = more reading time
+  // Exact-ish seconds from spawn until gate hit, per level
+  const ITEM_SEC = [0, 8, 7, 6, 6, 7];
+  const GATE_SPAWN = 1.4;
   const GATE_HIT_Z = 0.12;
-  const GATE_APPROACH = 0.10; // was 0.22
-  const MAX_PLAUSIBLE = 4000;
+  const GATE_DIST = GATE_SPAWN - GATE_HIT_Z;
+  const MAX_PLAUSIBLE = 5000;
 
   const $ = (id) => document.getElementById(id);
   const screens = {
@@ -34,34 +35,33 @@
     });
   }
 
+  let learners = []; // {g,s,n,l,f} from ADM Portal
   let player = { name: '', grade: '11', section: '' };
-  // attemptsUsed = completed attempts (0–2). bestTotal = best of those.
   let progress = blankProgress();
   let run = null;
-  let attempt = null; // { num, score, unlocked, bestLevel, totalCorrect, active }
+  let attempt = null;
   let raf = 0;
   let remoteRecord = null;
+  let shakeT = 0;
 
   function blankProgress() {
-    return {
-      attemptsUsed: 0,
-      bestTotal: 0,
-      bestLevel: 0,
-      attemptScores: [],
-    };
+    return { attemptsUsed: 0, bestTotal: 0, bestLevel: 0, attemptScores: [] };
   }
 
   function keyOf(p) {
-    return norm(p.name) + '-g' + String(p.grade);
+    return norm(p.name) + '-g' + String(p.grade).replace(/\D/g, '');
   }
   function norm(s) {
-    // Case- and space-insensitive: "Ray Mart" / "raymart" / "RAY  MART" → same key
     return (
       String(s || '')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '')
         .slice(0, 48) || 'anon'
     );
+  }
+  function gradeNum(g) {
+    const m = String(g || '').match(/(\d+)/);
+    return m ? m[1] : String(g);
   }
 
   function loadLocal() {
@@ -70,7 +70,7 @@
       if (raw) {
         const p = JSON.parse(raw);
         progress.attemptsUsed = Math.max(0, Number(p.attemptsUsed) || 0);
-        progress.bestTotal = Math.max(0, Number(p.bestTotal) || Number(p.totals) || 0);
+        progress.bestTotal = Math.max(0, Number(p.bestTotal) || 0);
         progress.bestLevel = Math.max(0, Number(p.bestLevel) || 0);
         progress.attemptScores = Array.isArray(p.attemptScores) ? p.attemptScores : [];
       }
@@ -84,10 +84,6 @@
 
   async function fetchRemoteRecord() {
     try {
-      if (GAS_URL) {
-        const r = await fetch(GAS_URL + '?action=record&name=' + encodeURIComponent(player.name) + '&grade=' + encodeURIComponent(player.grade));
-        return await r.json();
-      }
       const path = API + '/scores/' + keyOf(player) + '?t=' + Date.now();
       const r = await fetch(path);
       if (!r.ok) return null;
@@ -103,12 +99,9 @@
   function mergeRemote(rec) {
     remoteRecord = rec;
     if (!rec) return;
-    const remAttempts = Math.max(0, Number(rec.attempts) || 0);
-    const remTotal = Math.max(0, Number(rec.total) || 0);
-    const remLevel = Math.max(0, Number(rec.bestLevel) || 0);
-    progress.attemptsUsed = Math.max(progress.attemptsUsed, remAttempts);
-    progress.bestTotal = Math.max(progress.bestTotal, remTotal);
-    progress.bestLevel = Math.max(progress.bestLevel, remLevel);
+    progress.attemptsUsed = Math.max(progress.attemptsUsed, Math.max(0, Number(rec.attempts) || 0));
+    progress.bestTotal = Math.max(progress.bestTotal, Math.max(0, Number(rec.total) || 0));
+    progress.bestLevel = Math.max(progress.bestLevel, Math.max(0, Number(rec.bestLevel) || 0));
     if (Array.isArray(rec.attemptScores) && rec.attemptScores.length) {
       const set = new Set(progress.attemptScores.concat(rec.attemptScores.map(Number)));
       progress.attemptScores = [...set].filter((n) => Number.isFinite(n));
@@ -118,11 +111,6 @@
 
   async function fetchBoard() {
     try {
-      if (GAS_URL) {
-        const r = await fetch(GAS_URL + '?action=board');
-        const j = await r.json();
-        return Array.isArray(j.entries) ? j.entries : [];
-      }
       const r = await fetch(API_EXPORT + '?t=' + Date.now());
       const j = await r.json();
       const entries = [];
@@ -141,7 +129,6 @@
   }
 
   async function submitRecord(entry) {
-    // Local board mirror
     const local = JSON.parse(localStorage.getItem('ir-local-board') || '[]');
     const idx = local.findIndex((e) => norm(e.name) === norm(entry.name) && String(e.grade) === String(entry.grade));
     if (idx >= 0) local[idx] = entry;
@@ -149,14 +136,6 @@
     localStorage.setItem('ir-local-board', JSON.stringify(local));
 
     try {
-      if (GAS_URL) {
-        await fetch(GAS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'submit', ...entry }),
-        });
-        return true;
-      }
       const path = API + '/scores/' + keyOf(entry);
       let best = Object.assign({}, entry);
       try {
@@ -164,23 +143,22 @@
         if (prev && prev.name) {
           best.total = Math.max(Number(prev.total) || 0, Number(entry.total) || 0);
           best.bestLevel = Math.max(Number(prev.bestLevel) || 0, Number(entry.bestLevel) || 0);
-          best.attempts = Math.min(MAX_ATTEMPTS, Math.max(Number(prev.attempts) || 0, Number(entry.attempts) || 0));
-          // If remote already used both tries, keep best total but do not accept a fresh higher attempt count beyond 2
-          if ((Number(prev.attempts) || 0) >= MAX_ATTEMPTS) {
-            best.attempts = MAX_ATTEMPTS;
-            best.total = Math.max(Number(prev.total) || 0, Number(entry.total) || 0);
-            // Prefer existing attemptScores when already maxed
-            if (Array.isArray(prev.attemptScores) && prev.attemptScores.length >= MAX_ATTEMPTS) {
-              best.attemptScores = prev.attemptScores.slice(0, MAX_ATTEMPTS);
-            }
-          }
+          best.attempts = Math.min(
+            MAX_ATTEMPTS,
+            Math.max(Number(prev.attempts) || 0, Number(entry.attempts) || 0)
+          );
           const scores = []
             .concat(Array.isArray(prev.attemptScores) ? prev.attemptScores : [])
             .concat(Array.isArray(entry.attemptScores) ? entry.attemptScores : [])
             .map(Number)
             .filter((n) => Number.isFinite(n));
           best.attemptScores = [...new Set(scores)].slice(-4);
-          // Prefer higher total's name casing from whoever set the best
+          if ((Number(prev.attempts) || 0) >= MAX_ATTEMPTS) {
+            best.attempts = MAX_ATTEMPTS;
+            if (Array.isArray(prev.attemptScores) && prev.attemptScores.length >= MAX_ATTEMPTS) {
+              best.attemptScores = prev.attemptScores.slice(0, MAX_ATTEMPTS);
+            }
+          }
           if ((Number(prev.total) || 0) > (Number(entry.total) || 0)) {
             best.name = prev.name;
             best.section = prev.section || entry.section;
@@ -215,8 +193,17 @@
     list.slice(0, 100).forEach((e, i) => {
       const tr = document.createElement('tr');
       tr.innerHTML =
-        '<td>' + (i + 1) + '</td><td>' + esc(e.name) + '</td><td>G' + esc(e.grade) +
-        '</td><td>' + Number(e.total) + '</td><td>L' + Number(e.bestLevel || 0) + '</td>';
+        '<td>' +
+        (i + 1) +
+        '</td><td>' +
+        esc(e.name) +
+        '</td><td>G' +
+        esc(e.grade) +
+        '</td><td>' +
+        Number(e.total) +
+        '</td><td>L' +
+        Number(e.bestLevel || 0) +
+        '</td>';
       tb.appendChild(tr);
     });
   }
@@ -228,10 +215,94 @@
       .replace(/"/g, '&quot;');
   }
 
+  // ---- Master list (ADM Portal) ----
+  async function loadLearners() {
+    const status = $('load-status');
+    try {
+      const r = await fetch(ADM_API + '?action=config&t=' + Date.now());
+      const j = await r.json();
+      learners = Array.isArray(j.learners) ? j.learners.filter((x) => x && x.n && x.g && x.s) : [];
+      if (!learners.length) {
+        status.textContent = 'Class list empty — ask your teacher.';
+        return;
+      }
+      const grades = [...new Set(learners.map((x) => gradeNum(x.g)))].sort();
+      const gSel = $('inp-grade');
+      gSel.innerHTML = '<option value="">Select grade</option>';
+      grades.forEach((g) => {
+        const o = document.createElement('option');
+        o.value = g;
+        o.textContent = 'Grade ' + g;
+        gSel.appendChild(o);
+      });
+      const g11 = learners.filter((x) => gradeNum(x.g) === '11').length;
+      const g12 = learners.filter((x) => gradeNum(x.g) === '12').length;
+      status.textContent = 'Loaded ' + learners.length + ' learners (G11: ' + g11 + ', G12: ' + g12 + ').';
+      $('btn-play').disabled = true;
+    } catch (e) {
+      status.textContent = 'Could not load class list. Check connection / try again.';
+      $('inp-grade').innerHTML = '<option value="">Unavailable</option>';
+    }
+  }
+
+  function fillSections() {
+    const g = $('inp-grade').value;
+    const sSel = $('inp-section');
+    const nSel = $('inp-name');
+    nSel.innerHTML = '<option value="">Select section first</option>';
+    nSel.disabled = true;
+    $('btn-play').disabled = true;
+    if (!g) {
+      sSel.innerHTML = '<option value="">Select grade first</option>';
+      sSel.disabled = true;
+      return;
+    }
+    const secs = [...new Set(learners.filter((x) => gradeNum(x.g) === g).map((x) => x.s))].sort();
+    sSel.innerHTML = '<option value="">Select section</option>';
+    secs.forEach((s) => {
+      const o = document.createElement('option');
+      o.value = s;
+      o.textContent = s;
+      sSel.appendChild(o);
+    });
+    sSel.disabled = false;
+  }
+
+  function fillNames() {
+    const g = $('inp-grade').value;
+    const s = $('inp-section').value;
+    const nSel = $('inp-name');
+    $('btn-play').disabled = true;
+    if (!g || !s) {
+      nSel.innerHTML = '<option value="">Select section first</option>';
+      nSel.disabled = true;
+      return;
+    }
+    const names = learners
+      .filter((x) => gradeNum(x.g) === g && x.s === s)
+      .map((x) => x.n)
+      .sort((a, b) => a.localeCompare(b));
+    nSel.innerHTML = '<option value="">Select your name</option>';
+    names.forEach((n) => {
+      const o = document.createElement('option');
+      o.value = n;
+      o.textContent = n;
+      nSel.appendChild(o);
+    });
+    nSel.disabled = false;
+  }
+
+  $('inp-grade').onchange = fillSections;
+  $('inp-section').onchange = fillNames;
+  $('inp-name').onchange = () => {
+    $('btn-play').disabled = !$('inp-name').value;
+  };
+
   // ---- Canvas ----
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  let W = 360, H = 640;
+  let W = 360,
+    H = 640;
   let tiltOn = false;
 
   function resize() {
@@ -239,45 +310,228 @@
     const r = wrap.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = Math.max(280, Math.floor(r.width));
-    H = Math.max(420, Math.floor(r.height));
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
+    H = Math.max(320, Math.floor(r.height));
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  function levelSpeed(level, qIndex) {
-    return BASE_SPEED[level] + Math.min(0.35, (qIndex || 0) * 0.012);
+  function laneX(lane, z) {
+    const perspective = 1 / (0.35 + z * 1.1);
+    const roadW = W * 0.85 * perspective;
+    const cx = W / 2;
+    return cx + ((lane - 1) * roadW) / 3;
   }
 
-  async function startAttempt() {
-    // Re-check device + remote so a wiped phone cannot start a 3rd try
-    const rec = await fetchRemoteRecord();
-    mergeRemote(rec);
-    if (progress.attemptsUsed >= MAX_ATTEMPTS) {
-      paintLobby();
-      return;
+  function drawCar(x, y, scale, flashOk) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    // body
+    ctx.fillStyle = flashOk ? '#66bb6a' : '#e53935';
+    roundRect(-22, -28, 44, 50, 8);
+    ctx.fill();
+    ctx.fillStyle = '#b71c1c';
+    roundRect(-20, -10, 40, 28, 6);
+    ctx.fill();
+    // cabin
+    ctx.fillStyle = '#81d4fa';
+    roundRect(-14, -22, 28, 16, 4);
+    ctx.fill();
+    // headlights
+    ctx.fillStyle = '#fff59d';
+    ctx.beginPath();
+    ctx.arc(-12, -26, 4, 0, Math.PI * 2);
+    ctx.arc(12, -26, 4, 0, Math.PI * 2);
+    ctx.fill();
+    // wheels
+    ctx.fillStyle = '#212121';
+    roundRect(-24, -18, 8, 14, 2);
+    roundRect(16, -18, 8, 14, 2);
+    roundRect(-24, 8, 8, 14, 2);
+    roundRect(16, 8, 8, 14, 2);
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawScene(dt) {
+    if (!run) return;
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.45);
+    sky.addColorStop(0, '#4fc3f7');
+    sky.addColorStop(1, '#b3e5fc');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // distant hills (parallax)
+    const hillOff = (run.roadOffset * 0.15) % W;
+    ctx.fillStyle = '#66bb6a';
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.42);
+    for (let i = 0; i <= 8; i++) {
+      const hx = ((i * W) / 6 - hillOff + W) % (W + 40) - 20;
+      ctx.quadraticCurveTo(hx + W / 12, H * 0.28 + (i % 2) * 18, hx + W / 6, H * 0.42);
     }
-    const num = progress.attemptsUsed + 1;
-    attempt = {
-      num,
-      score: 0,
-      unlocked: 1,
-      bestLevel: 0,
-      totalCorrect: 0,
-      active: true,
-    };
-    startLevel(1);
+    ctx.lineTo(W, H * 0.45);
+    ctx.lineTo(0, H * 0.45);
+    ctx.fill();
+
+    // roadside trees/buildings (simple)
+    const sideOff = run.roadOffset * 2;
+    for (let i = 0; i < 10; i++) {
+      const z = ((i / 10 + sideOff * 0.02) % 1);
+      const persp = 1 / (0.4 + z * 2.2);
+      const y = H * 0.38 + z * H * 0.5;
+      const sx = 14 * persp;
+      // left tree
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(W * 0.08 - sx, y - 20 * persp, 4 * persp, 22 * persp);
+      ctx.fillStyle = '#2e7d32';
+      ctx.beginPath();
+      ctx.arc(W * 0.08 - sx + 2 * persp, y - 28 * persp, 12 * persp, 0, Math.PI * 2);
+      ctx.fill();
+      // right building
+      ctx.fillStyle = i % 2 ? '#78909c' : '#90a4ae';
+      ctx.fillRect(W * 0.88, y - 40 * persp, 22 * persp, 42 * persp);
+      ctx.fillStyle = '#ffe082';
+      ctx.fillRect(W * 0.88 + 4 * persp, y - 32 * persp, 5 * persp, 5 * persp);
+    }
+
+    // road trapezoid
+    const roadTop = H * 0.38;
+    ctx.fillStyle = '#455a64';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.35, roadTop);
+    ctx.lineTo(W * 0.65, roadTop);
+    ctx.lineTo(W * 0.98, H);
+    ctx.lineTo(W * 0.02, H);
+    ctx.closePath();
+    ctx.fill();
+
+    // lane markings
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([18, 16]);
+    ctx.lineDashOffset = -run.roadOffset * 40;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.45, roadTop);
+    ctx.lineTo(W * 0.35, H);
+    ctx.moveTo(W * 0.55, roadTop);
+    ctx.lineTo(W * 0.65, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // yellow center dashes softer
+    ctx.strokeStyle = '#f5c518';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([12, 20]);
+    ctx.lineDashOffset = -run.roadOffset * 50;
+    ctx.beginPath();
+    ctx.moveTo(W / 2, roadTop);
+    ctx.lineTo(W / 2, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // answer gates
+    const q = currentGate();
+    if (q && !run.gateHit) {
+      const z = run.gateZ;
+      const persp = 1 / (0.35 + z * 1.1);
+      const y = roadTop + (1 - Math.min(1, (z - GATE_HIT_Z) / GATE_DIST)) * (H * 0.48);
+      const colors = ['#42a5f5', '#ab47bc', '#ef5350'];
+      for (let lane = 0; lane < 3; lane++) {
+        const x = laneX(lane, z);
+        const gw = 52 * persp;
+        const gh = 36 * persp;
+        ctx.save();
+        ctx.translate(x, y);
+        // sign post
+        ctx.fillStyle = '#795548';
+        ctx.fillRect(-2, 0, 4, 28 * persp);
+        // sign board
+        ctx.fillStyle = colors[lane];
+        roundRect(-gw / 2, -gh, gw, gh, 6 * persp);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2 * persp;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold ' + Math.max(11, 18 * persp) + 'px system-ui,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(q.options[lane]), 0, -gh / 2);
+        ctx.restore();
+      }
+    }
+
+    // car
+    const carLane = run.carX;
+    const cx = laneX(carLane, GATE_HIT_Z + 0.02);
+    const cy = H * 0.82;
+    if (shakeT > 0) {
+      ctx.save();
+      ctx.translate((Math.random() - 0.5) * 10 * shakeT, (Math.random() - 0.5) * 6 * shakeT);
+    }
+    drawCar(cx, cy, 1.15, run.flash && run.flash.kind === 'ok');
+    if (shakeT > 0) ctx.restore();
+
+    // +points popup
+    if (run.flash && run.flash.kind === 'ok' && run.flash.gained) {
+      const t = run.flash.t;
+      ctx.fillStyle = 'rgba(46,125,50,' + Math.min(1, t * 2) + ')';
+      ctx.font = 'bold 28px system-ui,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('+' + run.flash.gained, W / 2, H * 0.55 - (0.55 - t) * 40);
+    }
+    // green/red flash overlay
+    if (run.flash) {
+      ctx.fillStyle =
+        run.flash.kind === 'ok'
+          ? 'rgba(76,175,80,' + Math.min(0.35, run.flash.t) + ')'
+          : 'rgba(244,67,54,' + Math.min(0.35, run.flash.t) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  function itemDuration(level) {
+    return ITEM_SEC[level] || 7;
+  }
+
+  function startAttempt() {
+    return (async () => {
+      const rec = await fetchRemoteRecord();
+      mergeRemote(rec);
+      if (progress.attemptsUsed >= MAX_ATTEMPTS) {
+        paintLobby();
+        return;
+      }
+      const num = progress.attemptsUsed + 1;
+      attempt = {
+        num,
+        score: 0,
+        unlocked: LEVELS,
+        bestLevel: 0,
+        totalCorrect: 0,
+        active: true,
+      };
+      startLevel(1);
+    })();
   }
 
   function startLevel(level) {
     if (!attempt || !attempt.active) {
       alert('Start an attempt first.');
-      return;
-    }
-    if (level > attempt.unlocked) {
-      alert('Need ' + UNLOCK_MIN + '/' + ITEMS + ' correct to unlock the next level.');
       return;
     }
     const questions = IRQuestions.generateLevel(level, ITEMS);
@@ -292,14 +546,16 @@
       lane: 1,
       targetLane: 1,
       carX: 1,
-      speed: levelSpeed(level, 0),
       gateZ: GATE_SPAWN,
       gateHit: false,
+      itemT: itemDuration(level),
+      itemMax: itemDuration(level),
       flash: null,
       roadOffset: 0,
       over: false,
       paused: false,
       lastTs: 0,
+      endedByLives: false,
     };
     updateHud();
     show('game');
@@ -317,11 +573,13 @@
     $('hud-lives').textContent = '❤'.repeat(run.lives) + '♡'.repeat(Math.max(0, LIVES - run.lives));
     const q = run.questions[run.qIndex];
     $('hud-prompt').textContent = q ? q.prompt : '';
+    const frac = Math.max(0, Math.min(1, run.itemT / run.itemMax));
+    $('timer-bar').style.transform = 'scaleX(' + frac + ')';
+    $('timer-label').textContent = run.itemT.toFixed(1) + 's';
   }
 
   function currentGate() {
-    const q = run.questions[run.qIndex];
-    return q || null;
+    return run && run.questions[run.qIndex] ? run.questions[run.qIndex] : null;
   }
 
   function hitGate(lane) {
@@ -340,7 +598,9 @@
       run.streak = 0;
       run.lives--;
       run.flash = { kind: 'bad', t: 0.55 };
+      shakeT = 0.45;
       if (run.lives <= 0) {
+        run.endedByLives = true;
         endLevel(false);
         return;
       }
@@ -352,7 +612,8 @@
     run.qIndex++;
     run.gateHit = false;
     run.gateZ = GATE_SPAWN;
-    run.speed = levelSpeed(run.level, run.qIndex);
+    run.itemT = itemDuration(run.level);
+    run.itemMax = run.itemT;
     if (run.qIndex >= ITEMS) {
       endLevel(true);
       return;
@@ -360,44 +621,43 @@
     updateHud();
   }
 
-  function endLevel(finished) {
+  function endLevel(finishedAllItems) {
     if (!run || run.over) return;
     run.over = true;
     cancelAnimationFrame(raf);
-    const passed = finished && run.correct >= UNLOCK_MIN;
     if (attempt) {
       attempt.score += run.score;
       attempt.totalCorrect += run.correct;
-      if (run.correct > 0 || finished) attempt.bestLevel = Math.max(attempt.bestLevel, run.level);
-      if (passed && run.level < LEVELS) attempt.unlocked = Math.max(attempt.unlocked, run.level + 1);
-      if (passed && run.level === LEVELS) attempt.unlocked = LEVELS;
+      attempt.bestLevel = Math.max(attempt.bestLevel, run.level);
     }
 
-    const attemptOver = !passed || (passed && run.level === LEVELS);
-    // !finished (died) OR finished but not enough to unlock → attempt ends
-    // finished + passed + not L5 → continue same attempt
+    const isLast = run.level >= LEVELS;
+    const died = !!run.endedByLives;
 
-    $('sum-title').textContent = !finished
-      ? 'Out of lives'
-      : passed
-        ? run.level === LEVELS
-          ? 'All 5 levels cleared!'
-          : 'Level ' + run.level + ' Clear!'
-        : 'Level ' + run.level + ' Done';
+    $('sum-title').textContent = isLast
+      ? 'Run complete!'
+      : died
+        ? 'Out of lives — next level'
+        : 'Level ' + run.level + ' Clear!';
 
     $('sum-detail').textContent =
-      'Correct: ' + run.correct + '/' + ITEMS +
-      ' · Level points: ' + run.score +
-      ' · Attempt total: ' + (attempt ? attempt.score : 0) +
-      (!finished ? ' · Attempt over' : '') +
-      (finished && !passed ? ' · Need ' + UNLOCK_MIN + '/' + ITEMS + ' to continue · Attempt over' : '') +
-      (finished && passed && run.level < LEVELS ? ' · Next level unlocked' : '');
+      'Correct: ' +
+      run.correct +
+      '/' +
+      (died ? run.qIndex + 1 : ITEMS) +
+      ' · Level points: ' +
+      run.score +
+      ' · Attempt total: ' +
+      (attempt ? attempt.score : 0) +
+      (died && !isLast ? ' · Fresh 3 lives on next level' : '') +
+      (isLast ? ' · All 5 levels done' : '');
 
-    if (attemptOver) {
-      finishAttempt().then(() => paintSummaryButtons(false, false));
+    if (isLast) {
+      finishAttempt().then(() => paintSummaryButtons(false));
     } else {
-      $('sum-sync').textContent = 'Attempt ' + attempt.num + ' of ' + MAX_ATTEMPTS + ' still going.';
-      paintSummaryButtons(true, false);
+      $('sum-sync').textContent =
+        'Attempt ' + attempt.num + ' of ' + MAX_ATTEMPTS + ' · Level ' + (run.level + 1) + ' next.';
+      paintSummaryButtons(true);
     }
     show('summary');
   }
@@ -427,15 +687,24 @@
     $('sum-sync').textContent = 'Saving best score…';
     const ok = await submitRecord(entry);
     $('sum-sync').textContent = ok
-      ? 'Saved. Best of your tries: ' + progress.bestTotal + ' · Attempts used: ' + progress.attemptsUsed + '/' + MAX_ATTEMPTS
-      : 'Saved on this phone. Best: ' + progress.bestTotal + ' · Attempts: ' + progress.attemptsUsed + '/' + MAX_ATTEMPTS;
+      ? 'Saved. Best of your tries: ' +
+        progress.bestTotal +
+        ' · Attempts used: ' +
+        progress.attemptsUsed +
+        '/' +
+        MAX_ATTEMPTS
+      : 'Saved on this phone. Best: ' +
+        progress.bestTotal +
+        ' · Attempts: ' +
+        progress.attemptsUsed +
+        '/' +
+        MAX_ATTEMPTS;
   }
 
-  function paintSummaryButtons(canNext, _unused) {
+  function paintSummaryButtons(canNext) {
     const left = MAX_ATTEMPTS - progress.attemptsUsed;
     $('btn-next').style.display = canNext ? '' : 'none';
     $('btn-next').textContent = 'Next Level';
-    // Retry = start next attempt if any left and current attempt ended
     if (!canNext && left > 0) {
       $('btn-retry').style.display = '';
       $('btn-retry').textContent = 'Start Attempt ' + (progress.attemptsUsed + 1) + ' of ' + MAX_ATTEMPTS;
@@ -451,193 +720,72 @@
     if (!run.lastTs) run.lastTs = ts;
     let dt = Math.min(0.05, (ts - run.lastTs) / 1000);
     run.lastTs = ts;
-    if (run.paused) {
-      raf = requestAnimationFrame(loop);
-      return;
-    }
+
+    // smooth lane
     run.carX += (run.targetLane - run.carX) * Math.min(1, dt * 12);
-    run.lane = Math.round(run.carX);
-    run.roadOffset = (run.roadOffset + run.speed * dt * 1.2) % 1;
-    if (!run.gateHit) {
-      run.gateZ -= run.speed * dt * GATE_APPROACH;
-      if (run.gateZ <= GATE_HIT_Z) hitGate(Math.round(run.carX));
-    } else if (run.flash) {
+
+    // road scroll (visual only) — proportional to level pace
+    const visualSpeed = 2.2 + run.level * 0.25;
+    run.roadOffset += visualSpeed * dt;
+
+    if (shakeT > 0) shakeT = Math.max(0, shakeT - dt);
+
+    if (run.flash) {
       run.flash.t -= dt;
       if (run.flash.t <= 0) {
+        const wasHit = run.gateHit;
         run.flash = null;
-        advanceQuestion();
+        if (wasHit && !run.over) advanceQuestion();
       }
+    } else if (!run.gateHit) {
+      // Exact timing: deplete itemT and move gateZ in sync
+      run.itemT -= dt;
+      const fracLeft = Math.max(0, run.itemT / run.itemMax);
+      run.gateZ = GATE_HIT_Z + GATE_DIST * fracLeft;
+      if (run.itemT <= 0 || run.gateZ <= GATE_HIT_Z) {
+        hitGate(Math.round(run.carX));
+      }
+      updateHud();
     }
-    draw();
+
+    drawScene(dt);
     raf = requestAnimationFrame(loop);
   }
 
-  function project(lane, z) {
-    const horizon = H * 0.28;
-    const nearY = H * 0.92;
-    const y = horizon + (nearY - horizon) * (1 - z);
-    const roadNearW = W * 0.92;
-    const roadFarW = W * 0.18;
-    const roadW = roadFarW + (roadNearW - roadFarW) * (1 - z);
-    const laneWidth = roadW / 3;
-    const x = W / 2 - roadW / 2 + laneWidth * (lane + 0.5);
-    return { x, y, s: 0.25 + 0.75 * (1 - z), roadW, laneWidth };
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#87c6ef');
-    g.addColorStop(0.35, '#c9e7a5');
-    g.addColorStop(1, '#5a8f3c');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-
-    const near = project(1, 0);
-    const far = project(1, 1);
-    ctx.beginPath();
-    ctx.moveTo(W / 2 - far.roadW / 2, far.y);
-    ctx.lineTo(W / 2 + far.roadW / 2, far.y);
-    ctx.lineTo(W / 2 + near.roadW / 2, near.y);
-    ctx.lineTo(W / 2 - near.roadW / 2, near.y);
-    ctx.closePath();
-    ctx.fillStyle = '#3d3d42';
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 2;
-    for (let laneEdge = 1; laneEdge <= 2; laneEdge++) {
-      ctx.beginPath();
-      for (let z = 0; z <= 1.001; z += 0.05) {
-        const p = project(0, z);
-        const x = W / 2 - p.roadW / 2 + (p.roadW / 3) * laneEdge;
-        if (z === 0) ctx.moveTo(x, p.y);
-        else ctx.lineTo(x, p.y);
-      }
-      ctx.stroke();
-    }
-
-    ctx.strokeStyle = '#f5c518';
-    ctx.setLineDash([12, 14]);
-    ctx.beginPath();
-    const midZ0 = run.roadOffset % 1;
-    for (let i = 0; i < 8; i++) {
-      const z1 = Math.min(1, (i + midZ0) / 8);
-      const z2 = Math.min(1, (i + 0.4 + midZ0) / 8);
-      const a = project(1, z1);
-      const b = project(1, z2);
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-    }
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    const q = currentGate();
-    if (q && run.gateZ > 0) {
-      for (let lane = 0; lane < 3; lane++) {
-        const p = project(lane, Math.max(0, run.gateZ));
-        const bw = p.laneWidth * 0.82;
-        const bh = 36 * p.s + 18;
-        ctx.fillStyle = run.gateHit
-          ? run.flash && run.flash.kind === 'ok' && Math.round(run.carX) === lane
-            ? '#2e7d32'
-            : run.flash && run.flash.kind === 'bad' && Math.round(run.carX) === lane
-              ? '#c62828'
-              : 'rgba(255,255,255,0.35)'
-          : '#fff8e1';
-        roundRect(p.x - bw / 2, p.y - bh, bw, bh, 8);
-        ctx.fill();
-        ctx.strokeStyle = '#062a1f';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#062a1f';
-        ctx.font = 'bold ' + Math.floor(16 * p.s + 10) + 'px system-ui,sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(q.options[lane]), p.x, p.y - bh / 2);
-      }
-    }
-
-    const cp = project(run.carX, 0.02);
-    drawCar(cp.x, cp.y - 10, 1);
-
-    if (run.flash) {
-      ctx.fillStyle = run.flash.kind === 'ok' ? 'rgba(46,125,50,0.85)' : 'rgba(198,40,40,0.85)';
-      ctx.fillRect(0, H * 0.38, W, 48);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 22px system-ui,sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        run.flash.kind === 'ok' ? 'CORRECT! +' + (run.flash.gained || BASE_PTS[run.level]) : 'MISS! Keep going',
-        W / 2,
-        H * 0.38 + 28
-      );
-    }
-  }
-
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  function drawCar(x, y, s) {
-    const w = 54 * s, h = 78 * s;
-    ctx.fillStyle = '#e53935';
-    roundRect(x - w / 2, y - h, w, h, 10);
-    ctx.fill();
-    ctx.fillStyle = '#bbdefb';
-    roundRect(x - w * 0.32, y - h * 0.78, w * 0.64, h * 0.28, 6);
-    ctx.fill();
-    ctx.fillStyle = '#fff59d';
-    ctx.fillRect(x - w * 0.38, y - h * 0.12, w * 0.2, h * 0.08);
-    ctx.fillRect(x + w * 0.18, y - h * 0.12, w * 0.2, h * 0.08);
-    ctx.fillStyle = '#111';
-    ctx.fillRect(x - w * 0.55, y - h * 0.35, w * 0.12, h * 0.22);
-    ctx.fillRect(x + w * 0.43, y - h * 0.35, w * 0.12, h * 0.22);
-    ctx.fillRect(x - w * 0.55, y - h * 0.85, w * 0.12, h * 0.22);
-    ctx.fillRect(x + w * 0.43, y - h * 0.85, w * 0.12, h * 0.22);
-  }
-
-  function steer(dir) {
+  // controls
+  function setLane(n) {
     if (!run || run.over) return;
-    run.targetLane = Math.max(0, Math.min(2, run.targetLane + dir));
+    run.targetLane = Math.max(0, Math.min(2, n));
   }
+  $('btn-left').onclick = () => setLane(0);
+  $('btn-mid').onclick = () => setLane(1);
+  $('btn-right').onclick = () => setLane(2);
 
-  let touchX0 = null;
+  let touchX0 = 0;
   canvas.addEventListener(
     'touchstart',
     (e) => {
-      if (!e.changedTouches[0]) return;
-      touchX0 = e.changedTouches[0].clientX;
-      e.preventDefault();
+      if (e.touches[0]) touchX0 = e.touches[0].clientX;
     },
-    { passive: false }
+    { passive: true }
   );
   canvas.addEventListener(
     'touchend',
     (e) => {
-      if (touchX0 == null || !e.changedTouches[0]) return;
-      const dx = e.changedTouches[0].clientX - touchX0;
-      const x = e.changedTouches[0].clientX;
-      const rect = canvas.getBoundingClientRect();
-      if (Math.abs(dx) > 30) steer(dx > 0 ? 1 : -1);
-      else steer(x < rect.left + rect.width / 2 ? -1 : 1);
-      touchX0 = null;
-      e.preventDefault();
+      const t = e.changedTouches[0];
+      if (!t || !run) return;
+      const dx = t.clientX - touchX0;
+      if (Math.abs(dx) > 30) setLane(run.targetLane + (dx > 0 ? 1 : -1));
     },
-    { passive: false }
+    { passive: true }
   );
+
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') steer(-1);
-    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') steer(1);
+    if (e.key === 'ArrowLeft' || e.key === 'a') setLane((run && run.targetLane) - 1);
+    if (e.key === 'ArrowRight' || e.key === 'd') setLane((run && run.targetLane) + 1);
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 's') setLane(1);
   });
-  $('btn-left').onclick = () => steer(-1);
-  $('btn-right').onclick = () => steer(1);
+
   $('chk-tilt').onchange = (e) => {
     tiltOn = e.target.checked;
     if (tiltOn && window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) {
@@ -653,18 +801,16 @@
     else run.targetLane = 1;
   });
 
-  // ---- Lobby / attempts UI ----
   function paintLobby() {
     $('levels-wrap').style.display = '';
     const left = MAX_ATTEMPTS - progress.attemptsUsed;
-    const label =
+    $('player-label').textContent =
       player.name +
       ' · G' +
       player.grade +
       (player.section ? ' · ' + player.section : '') +
       ' · Best: ' +
       progress.bestTotal;
-    $('player-label').textContent = label;
     const box = $('level-btns');
     box.innerHTML = '';
     if (left <= 0) {
@@ -675,24 +821,22 @@
         progress.bestTotal +
         '</b>' +
         (progress.bestLevel ? ' (reached L' + progress.bestLevel + ')' : '') +
-        '<br><span class="note" style="opacity:1">Highest of your 2 tries is on the leaderboard.</span>';
+        '<br><span class="note" style="opacity:1;color:#b71c1c">Highest of your 2 tries is on the leaderboard.</span>';
       box.appendChild(msg);
       return;
     }
     const b = document.createElement('button');
     b.className = 'lvl';
-    b.style.gridColumn = '1 / -1';
     b.textContent = 'Start Attempt ' + (progress.attemptsUsed + 1) + ' of ' + MAX_ATTEMPTS;
     b.onclick = () => startAttempt();
     box.appendChild(b);
     const hint = document.createElement('p');
     hint.className = 'note';
-    hint.style.gridColumn = '1 / -1';
     hint.textContent =
       left +
       ' try' +
       (left > 1 ? 's' : '') +
-      ' left · One attempt = Level 1 until you lose, finish, or stop · Highest score counts';
+      ' left · One attempt = Levels 1→5 (fresh lives each level) · Highest score counts';
     box.appendChild(hint);
   }
 
@@ -700,8 +844,14 @@
     const name = $('inp-name').value.trim();
     const grade = $('inp-grade').value;
     const section = $('inp-section').value.trim();
-    if (!name || name.length < 2) {
-      alert('Enter your first and last name.');
+    if (!name || !grade || !section) {
+      alert('Select Grade, Section, and your Name from the list.');
+      return;
+    }
+    // Must be on master list
+    const ok = learners.some((x) => x.n === name && gradeNum(x.g) === grade && x.s === section);
+    if (!ok) {
+      alert('Name not on the class list.');
       return;
     }
     player = { name, grade, section };
@@ -732,13 +882,8 @@
   $('btn-next').onclick = () => {
     if (attempt && attempt.active && run) startLevel(run.level + 1);
   };
-  $('btn-retry').onclick = () => {
-    // Starts the next attempt (only shown when previous attempt ended and tries remain)
-    startAttempt();
-  };
+  $('btn-retry').onclick = () => startAttempt();
   $('btn-menu').onclick = () => {
-    // If leaving while a level is mid-flight, that attempt still ends when they already hit summary.
-    // If somehow still in game, treat as quit → end attempt.
     if (run && !run.over && attempt && attempt.active) {
       run.over = true;
       cancelAnimationFrame(raf);
@@ -753,22 +898,22 @@
     paintLobby();
   };
 
-  // Expose constants for tests
   window.__IR_TEST__ = {
-    BASE_SPEED,
+    ITEM_SEC,
     GATE_SPAWN,
-    GATE_APPROACH,
     GATE_HIT_Z,
+    GATE_DIST,
     MAX_ATTEMPTS,
-    levelSpeed,
+    LEVELS,
+    ITEMS,
     getProgress: () => progress,
     getAttempt: () => attempt,
     getRun: () => run,
+    getLearners: () => learners,
+    itemDuration,
   };
 
-  $('inp-name').value = localStorage.getItem('ir-name') || '';
-  $('inp-grade').value = localStorage.getItem('ir-grade') || '11';
-  $('inp-section').value = localStorage.getItem('ir-section') || '';
+  loadLearners();
   window.addEventListener('resize', () => {
     if (screens.game.classList.contains('active')) resize();
   });

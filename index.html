@@ -4,79 +4,90 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#062a1f">
+<meta name="theme-color" content="#0a3d2e">
 <title>Integer Racer · Bago NHS</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#062a1f;color:#fff;overflow:hidden}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:linear-gradient(180deg,#0a3d2e 0%,#062a1f 40%,#041910 100%);color:#fff;overflow:hidden}
 body{display:flex;flex-direction:column}
-header.app{flex:0 0 auto;padding:10px 14px;background:#041f17;display:flex;align-items:center;gap:10px}
-.logo{width:36px;height:36px;border-radius:50%;background:#f5c518;color:#062a1f;display:grid;place-items:center;font-weight:900}
-header h1{font-size:1.05rem;margin:0;line-height:1.15}
-header small{display:block;opacity:.75;font-weight:400;font-size:.72rem}
+header.app{flex:0 0 auto;padding:10px 14px;background:linear-gradient(90deg,#05261c,#0a3d2e);display:flex;align-items:center;gap:10px;border-bottom:2px solid #f5c51855;box-shadow:0 2px 12px rgba(0,0,0,.35)}
+.logo{width:40px;height:40px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ffe566,#f5c518);color:#062a1f;display:grid;place-items:center;font-weight:900;font-size:1rem;box-shadow:0 2px 0 #c9a012,0 4px 10px rgba(0,0,0,.3)}
+header h1{font-size:1.08rem;margin:0;line-height:1.15;letter-spacing:.2px}
+header small{display:block;opacity:.8;font-weight:500;font-size:.7rem;margin-top:2px}
 .screen{display:none;flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
 .screen.active{display:flex;flex-direction:column}
-.card{background:#fff;color:#1a1a1a;border-radius:14px;padding:16px;margin:12px;max-width:480px;width:calc(100% - 24px);align-self:center}
-label{display:block;font-weight:700;margin:10px 0 4px;font-size:.9rem}
-input,select{width:100%;padding:12px;font-size:1rem;border:1px solid #bbb;border-radius:8px;background:#fff}
+.card{background:#fff;color:#1a1a1a;border-radius:16px;padding:18px;margin:14px;max-width:480px;width:calc(100% - 28px);align-self:center;box-shadow:0 8px 28px rgba(0,0,0,.28)}
+.hero{text-align:center;margin-bottom:8px}
+.hero .badge{display:inline-block;background:#e8f5e9;color:#1b5e20;font-weight:800;font-size:.72rem;padding:4px 10px;border-radius:999px;margin-bottom:8px}
+.hero strong{display:block;font-size:1.15rem;color:#062a1f}
+.hero .tag{font-size:.78rem;color:#555;margin-top:4px}
+label{display:block;font-weight:700;margin:10px 0 4px;font-size:.88rem;color:#333}
+input,select{width:100%;padding:12px;font-size:1rem;border:1.5px solid #cfd8dc;border-radius:10px;background:#fafafa}
+input:focus,select:focus{outline:2px solid #f5c518;border-color:#f5c518;background:#fff}
+select:disabled{opacity:.55;background:#eee}
 .row{display:flex;gap:8px}
 .row>*{flex:1}
-button.primary{width:100%;margin-top:14px;padding:14px;font-size:1.05rem;background:#f5c518;border:0;border-radius:10px;font-weight:800;color:#062a1f}
-button.secondary{width:100%;margin-top:8px;padding:12px;font-size:.95rem;background:#e8f5e9;border:0;border-radius:10px;font-weight:700;color:#062a1f}
-button.ghost{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;padding:10px 14px;border-radius:8px;font-weight:700}
-.note{font-size:.8rem;opacity:.85;line-height:1.35;margin:10px 0 0}
+button.primary{width:100%;margin-top:14px;padding:14px;font-size:1.05rem;background:linear-gradient(180deg,#ffe566,#f5c518);border:0;border-radius:12px;font-weight:800;color:#062a1f;box-shadow:0 3px 0 #c9a012}
+button.primary:active{transform:translateY(2px);box-shadow:0 1px 0 #c9a012}
+button.primary:disabled{opacity:.55}
+button.secondary{width:100%;margin-top:8px;padding:12px;font-size:.95rem;background:#e8f5e9;border:0;border-radius:12px;font-weight:700;color:#062a1f}
+button.ghost{background:transparent;border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:10px 14px;border-radius:10px;font-weight:700}
+.note{font-size:.78rem;opacity:.88;line-height:1.4;margin:10px 0 0;color:#444}
 .muted{opacity:.7;text-align:center;padding:16px}
-#level-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-#level-btns button.lvl{padding:14px;border:0;border-radius:10px;background:#2e7d32;color:#fff;font-weight:800}
-#level-btns button.lvl.locked{background:#9e9e9e}
-#player-label{font-size:.85rem;opacity:.9;margin-top:4px}
-/* Game HUD */
-#screen-game{overflow:hidden;background:#062a1f}
-#hud{flex:0 0 auto;padding:8px 10px;background:#041f17}
-#hud-top{display:flex;justify-content:space-between;font-weight:700;font-size:.85rem;gap:6px}
-#hud-prompt{margin-top:6px;background:#f5c518;color:#062a1f;font-weight:900;font-size:1.15rem;text-align:center;padding:8px 6px;border-radius:8px;min-height:42px}
+#level-btns{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+#level-btns button.lvl{padding:16px;border:0;border-radius:12px;background:linear-gradient(180deg,#43a047,#2e7d32);color:#fff;font-weight:800;font-size:1.05rem;box-shadow:0 3px 0 #1b5e20}
+#player-label{font-size:.85rem;opacity:.95;margin-top:6px;font-weight:600;color:#1b5e20}
+#screen-game{overflow:hidden;background:#0a3d2e}
+#hud{flex:0 0 auto;padding:8px 10px 6px;background:linear-gradient(180deg,#05261c,#0a3d2e);border-bottom:1px solid #f5c51844}
+#hud-top{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:.82rem;gap:6px;flex-wrap:wrap}
+#hud-attempt{font-size:.78rem;opacity:.95;width:100%;text-align:center;order:-1;color:#ffe566;letter-spacing:.3px}
+#hud-prompt{margin-top:6px;background:linear-gradient(180deg,#ffe566,#f5c518);color:#062a1f;font-weight:900;font-size:1.12rem;text-align:center;padding:8px 6px;border-radius:10px;min-height:42px;box-shadow:0 2px 0 #c9a012}
+#timer-wrap{margin-top:6px;height:8px;background:#1a4d3a;border-radius:6px;overflow:hidden;position:relative}
+#timer-bar{height:100%;width:100%;background:linear-gradient(90deg,#66bb6a,#f5c518,#ef5350);border-radius:6px;transform-origin:left center;transition:none}
+#timer-label{position:absolute;right:4px;top:-14px;font-size:.65rem;opacity:.85;font-weight:700}
 #game-wrap{flex:1;position:relative;min-height:0}
-#game{display:block;width:100%;height:100%;touch-action:none;background:#87c6ef}
-#controls{flex:0 0 auto;display:flex;gap:8px;padding:8px 10px 12px;background:#041f17;align-items:center}
-#controls button{flex:1;padding:16px;font-size:1.2rem;font-weight:900;border:0;border-radius:12px;background:#f5c518;color:#062a1f}
-#controls .tilt{flex:0 0 auto;font-size:.75rem;display:flex;align-items:center;gap:4px}
-table{width:100%;border-collapse:collapse;font-size:.9rem}
-th,td{padding:8px 6px;border-bottom:1px solid #ddd;text-align:left}
+#game{display:block;width:100%;height:100%;touch-action:none;background:#7ec8f0}
+#controls{flex:0 0 auto;display:flex;gap:8px;padding:8px 10px 12px;background:#05261c;align-items:center}
+#controls button{flex:1;padding:15px;font-size:1.15rem;font-weight:900;border:0;border-radius:12px;background:linear-gradient(180deg,#ffe566,#f5c518);color:#062a1f;box-shadow:0 3px 0 #c9a012}
+#controls .tilt{flex:0 0 auto;font-size:.72rem;display:flex;align-items:center;gap:4px}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{padding:8px 6px;border-bottom:1px solid #e0e0e0;text-align:left}
 th{background:#e8f5e9}
-.tabs{display:flex;gap:6px;margin:8px 0}
-.tabs button{flex:1;padding:8px;border-radius:8px;border:0;background:#c8e6c9;font-weight:700}
-.tabs button.on{background:#2e7d32;color:#fff}
-#sum-sync{font-size:.8rem;opacity:.8;margin-top:8px}
-.no-tries{background:#ffebee;color:#b71c1c;padding:14px;border-radius:10px;text-align:center;line-height:1.45;grid-column:1/-1}
-#hud-top{flex-wrap:wrap}
-#hud-attempt{font-size:.8rem;opacity:.95;width:100%;text-align:center;order:-1}
+.no-tries{background:#ffebee;color:#b71c1c;padding:14px;border-radius:12px;text-align:center;line-height:1.45}
+#sum-sync{font-size:.8rem;opacity:.85;margin-top:8px}
+.pill{display:inline-block;background:#e3f2fd;color:#0d47a1;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:4px}
+#load-status{font-size:.78rem;color:#666;margin-top:6px;min-height:1.2em}
 </style>
 </head>
 <body>
 <header class="app">
   <div class="logo">IR</div>
-  <h1>Integer Racer<small>Bago National High School · Roxas City · ADM</small></h1>
+  <h1>Integer Racer<small>Bago National High School – Integer Racer</small></h1>
 </header>
 
-<!-- START -->
 <section id="screen-start" class="screen active">
   <div class="card">
-    <strong>Drive. Hit the correct integer. Climb the board.</strong>
-    <label for="inp-name">Full name</label>
-    <input id="inp-name" maxlength="40" placeholder="e.g. Juan Dela Cruz" autocomplete="name">
-    <div class="row">
-      <div>
-        <label for="inp-grade">Grade</label>
-        <select id="inp-grade"><option value="11">Grade 11</option><option value="12">Grade 12</option></select>
-      </div>
-      <div>
-        <label for="inp-section">Section (optional)</label>
-        <input id="inp-section" maxlength="20" placeholder="e.g. HUMSS">
-      </div>
+    <div class="hero">
+      <div class="badge">Bago NHS · ADM</div>
+      <strong>Drive. Hit the correct integer.</strong>
+      <div class="tag">Climb the school leaderboard · 2 tries · best score counts</div>
     </div>
-    <button class="primary" id="btn-play">Continue</button>
+    <label for="inp-grade">Grade</label>
+    <select id="inp-grade">
+      <option value="">Loading…</option>
+    </select>
+    <label for="inp-section">Section</label>
+    <select id="inp-section" disabled>
+      <option value="">Select grade first</option>
+    </select>
+    <label for="inp-name">Name</label>
+    <select id="inp-name" disabled>
+      <option value="">Select section first</option>
+    </select>
+    <div id="load-status">Loading class list…</div>
+    <button class="primary" id="btn-play" disabled>Continue</button>
     <button class="secondary" id="btn-go-board">Leaderboard</button>
-    <p class="note">2 tries only · Highest score counts · 5 levels · 20 items each · Need 12/20 to unlock next · 3 lives per level · Wrong hits never show the answer.</p>
+    <p class="note">2 tries only · Highest score counts · 5 levels × 20 items · 3 lives per level (lose them → next level with fresh lives) · Wrong hits never show the answer.</p>
     <div id="levels-wrap" style="display:none;margin-top:12px">
       <div id="player-label"></div>
       <div id="level-btns"></div>
@@ -84,7 +95,6 @@ th{background:#e8f5e9}
   </div>
 </section>
 
-<!-- GAME -->
 <section id="screen-game" class="screen">
   <div id="hud">
     <div id="hud-top">
@@ -95,44 +105,40 @@ th{background:#e8f5e9}
       <span id="hud-lives">❤❤❤</span>
     </div>
     <div id="hud-prompt">—</div>
+    <div id="timer-wrap"><div id="timer-bar"></div><span id="timer-label">8.0s</span></div>
   </div>
   <div id="game-wrap"><canvas id="game"></canvas></div>
   <div id="controls">
-    <button type="button" id="btn-left" aria-label="Left">◀</button>
+    <button type="button" id="btn-left" aria-label="Left lane">◀</button>
+    <button type="button" id="btn-mid" aria-label="Middle lane">●</button>
+    <button type="button" id="btn-right" aria-label="Right lane">▶</button>
     <label class="tilt"><input type="checkbox" id="chk-tilt"> Tilt</label>
-    <button type="button" id="btn-right" aria-label="Right">▶</button>
   </div>
 </section>
 
-<!-- SUMMARY -->
 <section id="screen-summary" class="screen">
   <div class="card">
-    <h2 id="sum-title" style="margin:0 0 8px">Level done</h2>
-    <p id="sum-detail"></p>
+    <h2 id="sum-title" style="margin:0 0 8px;color:#062a1f">Level done</h2>
+    <p id="sum-detail" style="margin:0;line-height:1.45"></p>
     <p id="sum-sync"></p>
     <button class="primary" id="btn-next">Next Level</button>
-    <button class="secondary" id="btn-retry">Try Again</button>
-    <button class="secondary" id="btn-menu">Back to Levels</button>
+    <button class="secondary" id="btn-retry" style="display:none">Try again</button>
+    <button class="secondary" id="btn-menu">Back</button>
   </div>
 </section>
 
-<!-- LEADERBOARD -->
 <section id="screen-board" class="screen">
-  <div class="card" style="max-width:560px">
+  <div class="card">
     <strong>Leaderboard · Grade 11 &amp; 12</strong>
-    <div class="tabs">
-      <select id="board-filter" style="flex:1">
-        <option value="all">All</option>
-        <option value="11">Grade 11</option>
-        <option value="12">Grade 12</option>
-      </select>
-    </div>
-    <div style="overflow:auto;max-height:60vh">
-      <table>
-        <thead><tr><th>#</th><th>Name</th><th>Grade</th><th>Points</th><th>Best</th></tr></thead>
-        <tbody id="board-body"></tbody>
-      </table>
-    </div>
+    <select id="board-filter" style="margin:10px 0">
+      <option value="all">All</option>
+      <option value="11">Grade 11</option>
+      <option value="12">Grade 12</option>
+    </select>
+    <table>
+      <thead><tr><th>#</th><th>Name</th><th>Grade</th><th>Points</th><th>Best</th></tr></thead>
+      <tbody id="board-body"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+    </table>
     <button class="secondary" id="btn-board-back">Back</button>
     <p class="note">Best of each student's 2 tries · Refresh after classmates finish.</p>
   </div>

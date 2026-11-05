@@ -1,8 +1,9 @@
-# Integer Racer — Bago NHS ADM
+# Integer Racer · Bago National High School
 
-Live: https://raymartvalbarez.github.io/integer-racer/
+Temple Run–style integer practice for Grade 11–12 ADM. Live: https://raymartvalbarez.github.io/integer-racer/
 
-- **2 attempts only** per name + grade. Highest score of the two is on the leaderboard.
-- Levels 1–5, 20 items, need 12/20 to unlock next, 3 lives per level.
-- Slower pace for phone play; speed rises gently by level.
-- Backend: MantleDB `bnhs-iracer-nov2026` (optional `Code.gs` Sheet upgrade).
+- 5 levels × 20 items; 3 lives per level (lives out → next level with fresh lives)
+- Timed gates: L1 8s · L2 7s · L3 6s · L4 6s (mixed ops) · L5 7s (double-digit)
+- Name from ADM Portal Learners master list (Grade → Section → Name)
+- 2 attempts per learner; highest score on shared leaderboard
+- Wrong answers never reveal the correct choice

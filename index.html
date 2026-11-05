@@ -58,6 +58,21 @@ th{background:#e8f5e9}
 #sum-sync{font-size:.8rem;opacity:.85;margin-top:8px}
 .pill{display:inline-block;background:#e3f2fd;color:#0d47a1;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:4px}
 #load-status{font-size:.78rem;color:#666;margin-top:6px;min-height:1.2em}
+
+@media (orientation:landscape) and (max-height:500px){
+  header.app{padding:4px 10px}
+  header.app .sub{display:none}
+  #hud{padding:4px 8px 4px}
+  #hud-attempt{font-size:.7rem}
+  #hud-prompt{font-size:.95rem;padding:4px 6px;min-height:28px;margin-top:4px}
+  #timer-wrap{margin-top:4px;height:6px}
+  #controls{padding:4px 8px max(6px,env(safe-area-inset-bottom));gap:6px}
+  #controls button{padding:8px;font-size:1rem;border-radius:10px;box-shadow:0 2px 0 #c9a012}
+}
+@media (max-height:640px) and (orientation:portrait){
+  #hud-prompt{font-size:1rem;padding:6px;min-height:34px}
+  #controls button{padding:12px}
+}
 </style>
 </head>
 <body>
@@ -147,7 +162,7 @@ th{background:#e8f5e9}
   </div>
 </section>
 
-<script src="questions.js?v=20261105d"></script>
-<script src="game.js?v=20261105d"></script>
+<script src="questions.js?v=20261105e"></script>
+<script src="game.js?v=20261105e"></script>
 </body>
 </html>

@@ -539,9 +539,9 @@
     if (!wrap) return;
     const r = wrap.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    // CSS pixel size of the playfield (above on-screen controls)
-    W = Math.max(260, Math.floor(r.width));
-    H = Math.max(240, Math.floor(r.height));
+    // Match the visible wrap exactly — never taller than the wrap (avoids clipping the car)
+    W = Math.max(160, Math.floor(r.width));
+    H = Math.max(80, Math.floor(r.height));
     canvas.width = Math.max(1, Math.floor(W * dpr));
     canvas.height = Math.max(1, Math.floor(H * dpr));
     canvas.style.width = W + 'px';
@@ -551,11 +551,12 @@
 
   // Unified road perspective: t=0 far (horizon), t=1 near (by car)
   function roadGeom() {
-    const top = H * 0.34;
-    // Keep car fully above canvas bottom (controls sit under canvas)
-    const bot = H * 0.90;
-    const topHalf = Math.min(W * 0.16, 70);
-    const botHalf = W * 0.46;
+    // Short canvases (landscape phones): pull horizon up, keep car in lower third but on-screen
+    const short = H < 220;
+    const top = H * (short ? 0.18 : 0.30);
+    const bot = H * (short ? 0.92 : 0.88);
+    const topHalf = Math.min(W * 0.14, short ? 90 : 70);
+    const botHalf = Math.min(W * 0.42, W * 0.5);
     return { top, bot, topHalf, botHalf, midX: W / 2 };
   }
   function roadY(t, g) {
@@ -576,11 +577,15 @@
     return g.midX + (lane - 1) * ((2 * half) / 3);
   }
   function depthToT(z) {
-    // GATE_SPAWN (far) → t≈0.08; GATE_HIT_Z (near) → t≈0.78 (still above car)
+    // GATE_SPAWN (far) → t≈0.06; GATE_HIT_Z (near) → just above carT
     const u = (GATE_SPAWN - z) / GATE_DIST; // 0 at spawn, 1 at hit
-    return 0.08 + Math.max(0, Math.min(1, u)) * 0.70;
+    const near = Math.max(0.55, carT() - 0.10);
+    return 0.06 + Math.max(0, Math.min(1, u)) * (near - 0.06);
   }
-  const CAR_T = 0.88; // car sits near bottom of road, above controls
+  function carT() {
+    // Slightly higher on short canvases so the full sprite stays visible
+    return H < 220 ? 0.78 : 0.86;
+  }
 
   function drawCar(x, y, scale, flashOk) {
     ctx.save();
@@ -742,14 +747,17 @@
     }
 
     // car — bottom of road, scaled to lane width, fully on-canvas
-    const cx = laneX(run.carX, CAR_T, g);
-    const cy = roadY(CAR_T, g);
-    const laneWNear = (2 * roadHalf(CAR_T, g)) / 3;
-    // sprite local width ~52px; fit ~70% of lane
-    const carScale = Math.max(0.7, Math.min(1.55, (laneWNear * 0.72) / 52));
-    // ensure car bottom (local +18*scale) stays above canvas bottom with pad
-    const carBottomPad = 8;
-    const adjY = Math.min(cy, H - carBottomPad - 18 * carScale);
+    const ct = carT();
+    const cx = laneX(run.carX, ct, g);
+    const cy = roadY(ct, g);
+    const laneWNear = (2 * roadHalf(ct, g)) / 3;
+    // sprite local width ~52px; fit ~55% of lane so it sits clearly inside markers
+    const carScale = Math.max(0.55, Math.min(1.25, (laneWNear * 0.55) / 52));
+    // ensure full sprite (top ~-36*s, bottom ~+18*s) stays inside canvas
+    const carBottomPad = 6;
+    const maxY = H - carBottomPad - 18 * carScale;
+    const minY = 36 * carScale + 4;
+    const adjY = Math.max(minY, Math.min(cy, maxY));
     if (shakeT > 0) {
       ctx.save();
       ctx.translate((Math.random() - 0.5) * 10 * shakeT, (Math.random() - 0.5) * 6 * shakeT);
@@ -1186,7 +1194,8 @@
     GATE_SPAWN,
     GATE_HIT_Z,
     GATE_DIST,
-    CAR_T,
+    get CAR_T() { return carT(); },
+    carT,
     MAX_ATTEMPTS,
     LEVELS,
     ITEMS,

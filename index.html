@@ -47,6 +47,9 @@ th{background:#e8f5e9}
 .tabs button{flex:1;padding:8px;border-radius:8px;border:0;background:#c8e6c9;font-weight:700}
 .tabs button.on{background:#2e7d32;color:#fff}
 #sum-sync{font-size:.8rem;opacity:.8;margin-top:8px}
+.no-tries{background:#ffebee;color:#b71c1c;padding:14px;border-radius:10px;text-align:center;line-height:1.45;grid-column:1/-1}
+#hud-top{flex-wrap:wrap}
+#hud-attempt{font-size:.8rem;opacity:.95;width:100%;text-align:center;order:-1}
 </style>
 </head>
 <body>
@@ -73,7 +76,7 @@ th{background:#e8f5e9}
     </div>
     <button class="primary" id="btn-play">Continue</button>
     <button class="secondary" id="btn-go-board">Leaderboard</button>
-    <p class="note">5 levels · 20 items each · Speed &amp; points rise each level · Need 12/20 to unlock the next · 3 lives per level · Wrong hits never show the answer.</p>
+    <p class="note">2 tries only · Highest score counts · 5 levels · 20 items each · Need 12/20 to unlock next · 3 lives per level · Wrong hits never show the answer.</p>
     <div id="levels-wrap" style="display:none;margin-top:12px">
       <div id="player-label"></div>
       <div id="level-btns"></div>
@@ -85,6 +88,7 @@ th{background:#e8f5e9}
 <section id="screen-game" class="screen">
   <div id="hud">
     <div id="hud-top">
+      <span id="hud-attempt">Attempt 1 of 2</span>
       <span id="hud-level">L1</span>
       <span id="hud-q">1/20</span>
       <span>Score <span id="hud-score">0</span></span>
@@ -130,7 +134,7 @@ th{background:#e8f5e9}
       </table>
     </div>
     <button class="secondary" id="btn-board-back">Back</button>
-    <p class="note">One best score kept per name + grade. Refresh after classmates finish a level.</p>
+    <p class="note">Best of each student's 2 tries · Refresh after classmates finish.</p>
   </div>
 </section>
 

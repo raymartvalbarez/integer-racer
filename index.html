@@ -46,9 +46,9 @@ button.ghost{background:transparent;border:1.5px solid rgba(255,255,255,.4);colo
 #timer-wrap{margin-top:6px;height:8px;background:#1a4d3a;border-radius:6px;overflow:hidden;position:relative}
 #timer-bar{height:100%;width:100%;background:linear-gradient(90deg,#66bb6a,#f5c518,#ef5350);border-radius:6px;transform-origin:left center;transition:none}
 #timer-label{position:absolute;right:4px;top:-14px;font-size:.65rem;opacity:.85;font-weight:700}
-#game-wrap{flex:1;position:relative;min-height:0}
+#game-wrap{flex:1;position:relative;min-height:0;overflow:hidden}
 #game{display:block;width:100%;height:100%;touch-action:none;background:#7ec8f0}
-#controls{flex:0 0 auto;display:flex;gap:8px;padding:8px 10px 12px;background:#05261c;align-items:center}
+#controls{flex:0 0 auto;display:flex;gap:8px;padding:8px 10px max(12px,env(safe-area-inset-bottom));background:#05261c;align-items:center;z-index:2}
 #controls button{flex:1;padding:15px;font-size:1.15rem;font-weight:900;border:0;border-radius:12px;background:linear-gradient(180deg,#ffe566,#f5c518);color:#062a1f;box-shadow:0 3px 0 #c9a012}
 #controls .tilt{flex:0 0 auto;font-size:.72rem;display:flex;align-items:center;gap:4px}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
@@ -147,7 +147,7 @@ th{background:#e8f5e9}
   </div>
 </section>
 
-<script src="questions.js?v=20261105b"></script>
-<script src="game.js?v=20261105b"></script>
+<script src="questions.js?v=20261105c"></script>
+<script src="game.js?v=20261105c"></script>
 </body>
 </html>

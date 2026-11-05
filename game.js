@@ -20,6 +20,9 @@
   const GATE_HIT_Z = 0.12;
   const GATE_DIST = GATE_SPAWN - GATE_HIT_Z;
   const MAX_PLAUSIBLE = 5000;
+  const DEMO =
+    /(?:\?|&)(?:demo|test)=1(?:&|$)/.test(location.search || '') ||
+    location.hash === '#demo';
 
 
   // ---- Web Audio music + SFX (no files; unlock on first tap) ----
@@ -533,194 +536,234 @@
 
   function resize() {
     const wrap = $('game-wrap');
+    if (!wrap) return;
     const r = wrap.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    W = Math.max(280, Math.floor(r.width));
-    H = Math.max(320, Math.floor(r.height));
-    canvas.width = Math.floor(W * dpr);
-    canvas.height = Math.floor(H * dpr);
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    // CSS pixel size of the playfield (above on-screen controls)
+    W = Math.max(260, Math.floor(r.width));
+    H = Math.max(240, Math.floor(r.height));
+    canvas.width = Math.max(1, Math.floor(W * dpr));
+    canvas.height = Math.max(1, Math.floor(H * dpr));
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  function laneX(lane, z) {
-    const perspective = 1 / (0.35 + z * 1.1);
-    const roadW = W * 0.85 * perspective;
-    const cx = W / 2;
-    return cx + ((lane - 1) * roadW) / 3;
+  // Unified road perspective: t=0 far (horizon), t=1 near (by car)
+  function roadGeom() {
+    const top = H * 0.34;
+    // Keep car fully above canvas bottom (controls sit under canvas)
+    const bot = H * 0.90;
+    const topHalf = Math.min(W * 0.16, 70);
+    const botHalf = W * 0.46;
+    return { top, bot, topHalf, botHalf, midX: W / 2 };
   }
+  function roadY(t, g) {
+    g = g || roadGeom();
+    t = Math.max(0, Math.min(1, t));
+    return g.top + t * (g.bot - g.top);
+  }
+  function roadHalf(t, g) {
+    g = g || roadGeom();
+    t = Math.max(0, Math.min(1, t));
+    return g.topHalf + t * (g.botHalf - g.topHalf);
+  }
+  // Lane centers 0/1/2 share the same X mapping for car and gates
+  function laneX(lane, t, g) {
+    g = g || roadGeom();
+    const half = roadHalf(t, g);
+    // three equal lanes across full road width (2*half)
+    return g.midX + (lane - 1) * ((2 * half) / 3);
+  }
+  function depthToT(z) {
+    // GATE_SPAWN (far) → t≈0.08; GATE_HIT_Z (near) → t≈0.78 (still above car)
+    const u = (GATE_SPAWN - z) / GATE_DIST; // 0 at spawn, 1 at hit
+    return 0.08 + Math.max(0, Math.min(1, u)) * 0.70;
+  }
+  const CAR_T = 0.88; // car sits near bottom of road, above controls
 
   function drawCar(x, y, scale, flashOk) {
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(scale, scale);
-    // body
+    // body — local units ~ width 48, height 56; drawn centered on axle
     ctx.fillStyle = flashOk ? '#66bb6a' : '#e53935';
-    roundRect(-22, -28, 44, 50, 8);
+    roundRect(-22, -36, 44, 52, 8);
     ctx.fill();
     ctx.fillStyle = '#b71c1c';
-    roundRect(-20, -10, 40, 28, 6);
+    roundRect(-20, -18, 40, 30, 6);
     ctx.fill();
-    // cabin
     ctx.fillStyle = '#81d4fa';
-    roundRect(-14, -22, 28, 16, 4);
+    roundRect(-14, -30, 28, 16, 4);
     ctx.fill();
-    // headlights
     ctx.fillStyle = '#fff59d';
     ctx.beginPath();
-    ctx.arc(-12, -26, 4, 0, Math.PI * 2);
-    ctx.arc(12, -26, 4, 0, Math.PI * 2);
+    ctx.arc(-12, -34, 4, 0, Math.PI * 2);
+    ctx.arc(12, -34, 4, 0, Math.PI * 2);
     ctx.fill();
-    // wheels
     ctx.fillStyle = '#212121';
-    roundRect(-24, -18, 8, 14, 2);
-    roundRect(16, -18, 8, 14, 2);
-    roundRect(-24, 8, 8, 14, 2);
-    roundRect(16, 8, 8, 14, 2);
+    roundRect(-26, -22, 9, 14, 2);
+    roundRect(17, -22, 9, 14, 2);
+    roundRect(-26, 4, 9, 14, 2);
+    roundRect(17, 4, 9, 14, 2);
+    // nose mark so facing is clear
+    ctx.fillStyle = '#ffeb3b';
+    ctx.fillRect(-6, -38, 12, 4);
     ctx.restore();
   }
 
   function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
     ctx.closePath();
   }
 
   function drawScene(dt) {
     if (!run) return;
+    const g = roadGeom();
+
     // sky
-    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.45);
+    const sky = ctx.createLinearGradient(0, 0, 0, g.top + 20);
     sky.addColorStop(0, '#4fc3f7');
     sky.addColorStop(1, '#b3e5fc');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
 
-    // distant hills (parallax)
+    // hills
     const hillOff = (run.roadOffset * 0.15) % W;
     ctx.fillStyle = '#66bb6a';
     ctx.beginPath();
-    ctx.moveTo(0, H * 0.42);
+    ctx.moveTo(0, g.top + 8);
     for (let i = 0; i <= 8; i++) {
       const hx = ((i * W) / 6 - hillOff + W) % (W + 40) - 20;
-      ctx.quadraticCurveTo(hx + W / 12, H * 0.28 + (i % 2) * 18, hx + W / 6, H * 0.42);
+      ctx.quadraticCurveTo(hx + W / 12, g.top - 30 + (i % 2) * 16, hx + W / 6, g.top + 8);
     }
-    ctx.lineTo(W, H * 0.45);
-    ctx.lineTo(0, H * 0.45);
+    ctx.lineTo(W, g.top + 16);
+    ctx.lineTo(0, g.top + 16);
     ctx.fill();
 
-    // roadside trees/buildings (simple)
+    // roadside props
     const sideOff = run.roadOffset * 2;
     for (let i = 0; i < 10; i++) {
-      const z = ((i / 10 + sideOff * 0.02) % 1);
-      const persp = 1 / (0.4 + z * 2.2);
-      const y = H * 0.38 + z * H * 0.5;
-      const sx = 14 * persp;
-      // left tree
+      const zt = ((i / 10 + sideOff * 0.02) % 1);
+      const y = g.top + zt * (g.bot - g.top) * 0.85;
+      const sc = 0.35 + zt * 0.9;
       ctx.fillStyle = '#5d4037';
-      ctx.fillRect(W * 0.08 - sx, y - 20 * persp, 4 * persp, 22 * persp);
+      ctx.fillRect(W * 0.06, y - 18 * sc, 4 * sc, 20 * sc);
       ctx.fillStyle = '#2e7d32';
       ctx.beginPath();
-      ctx.arc(W * 0.08 - sx + 2 * persp, y - 28 * persp, 12 * persp, 0, Math.PI * 2);
+      ctx.arc(W * 0.06 + 2 * sc, y - 26 * sc, 11 * sc, 0, Math.PI * 2);
       ctx.fill();
-      // right building
       ctx.fillStyle = i % 2 ? '#78909c' : '#90a4ae';
-      ctx.fillRect(W * 0.88, y - 40 * persp, 22 * persp, 42 * persp);
+      ctx.fillRect(W * 0.88, y - 36 * sc, 20 * sc, 38 * sc);
       ctx.fillStyle = '#ffe082';
-      ctx.fillRect(W * 0.88 + 4 * persp, y - 32 * persp, 5 * persp, 5 * persp);
+      ctx.fillRect(W * 0.88 + 4 * sc, y - 28 * sc, 5 * sc, 5 * sc);
     }
 
-    // road trapezoid
-    const roadTop = H * 0.38;
-    ctx.fillStyle = '#455a64';
+    // road trapezoid (matches laneX / roadHalf)
+    ctx.fillStyle = '#546e7a';
     ctx.beginPath();
-    ctx.moveTo(W * 0.35, roadTop);
-    ctx.lineTo(W * 0.65, roadTop);
-    ctx.lineTo(W * 0.98, H);
-    ctx.lineTo(W * 0.02, H);
+    ctx.moveTo(g.midX - g.topHalf, g.top);
+    ctx.lineTo(g.midX + g.topHalf, g.top);
+    ctx.lineTo(g.midX + g.botHalf, g.bot);
+    ctx.lineTo(g.midX - g.botHalf, g.bot);
     ctx.closePath();
     ctx.fill();
-
-    // lane markings
-    ctx.strokeStyle = '#fff';
+    // asphalt edge lines
+    ctx.strokeStyle = '#eceff1';
     ctx.lineWidth = 3;
-    ctx.setLineDash([18, 16]);
-    ctx.lineDashOffset = -run.roadOffset * 40;
     ctx.beginPath();
-    ctx.moveTo(W * 0.45, roadTop);
-    ctx.lineTo(W * 0.35, H);
-    ctx.moveTo(W * 0.55, roadTop);
-    ctx.lineTo(W * 0.65, H);
+    ctx.moveTo(g.midX - g.topHalf, g.top);
+    ctx.lineTo(g.midX - g.botHalf, g.bot);
+    ctx.moveTo(g.midX + g.topHalf, g.top);
+    ctx.lineTo(g.midX + g.botHalf, g.bot);
+    ctx.stroke();
+
+    // lane dividers at 1/3 and 2/3
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([16, 14]);
+    ctx.lineDashOffset = -run.roadOffset * 42;
+    ctx.beginPath();
+    ctx.moveTo(g.midX - g.topHalf / 3, g.top);
+    ctx.lineTo(g.midX - g.botHalf / 3, g.bot);
+    ctx.moveTo(g.midX + g.topHalf / 3, g.top);
+    ctx.lineTo(g.midX + g.botHalf / 3, g.bot);
     ctx.stroke();
     ctx.setLineDash([]);
-
-    // yellow center dashes softer
+    // center dashes
     ctx.strokeStyle = '#f5c518';
     ctx.lineWidth = 2;
-    ctx.setLineDash([12, 20]);
+    ctx.setLineDash([10, 18]);
     ctx.lineDashOffset = -run.roadOffset * 50;
     ctx.beginPath();
-    ctx.moveTo(W / 2, roadTop);
-    ctx.lineTo(W / 2, H);
+    ctx.moveTo(g.midX, g.top);
+    ctx.lineTo(g.midX, g.bot);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // answer gates
+    // answer gates — same laneX as car
     const q = currentGate();
     if (q && !run.gateHit) {
-      const z = run.gateZ;
-      const persp = 1 / (0.35 + z * 1.1);
-      const y = roadTop + (1 - Math.min(1, (z - GATE_HIT_Z) / GATE_DIST)) * (H * 0.48);
-      const colors = ['#42a5f5', '#ab47bc', '#ef5350'];
+      const tGate = depthToT(run.gateZ);
+      const y = roadY(tGate, g);
+      const half = roadHalf(tGate, g);
+      const laneW = (2 * half) / 3;
+      const gw = Math.max(36, Math.min(laneW * 0.85, 90));
+      const gh = Math.max(26, gw * 0.62);
+      const fontPx = Math.max(13, Math.min(22, gw * 0.38));
+      const colors = ['#1e88e5', '#8e24aa', '#e53935'];
       for (let lane = 0; lane < 3; lane++) {
-        const x = laneX(lane, z);
-        const gw = 52 * persp;
-        const gh = 36 * persp;
+        const x = laneX(lane, tGate, g);
         ctx.save();
         ctx.translate(x, y);
-        // sign post
-        ctx.fillStyle = '#795548';
-        ctx.fillRect(-2, 0, 4, 28 * persp);
-        // sign board
+        ctx.fillStyle = '#5d4037';
+        ctx.fillRect(-2.5, 0, 5, Math.max(10, gh * 0.55));
         ctx.fillStyle = colors[lane];
-        roundRect(-gw / 2, -gh, gw, gh, 6 * persp);
+        roundRect(-gw / 2, -gh, gw, gh, 7);
         ctx.fill();
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2 * persp;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold ' + Math.max(11, 18 * persp) + 'px system-ui,sans-serif';
+        ctx.font = 'bold ' + fontPx + 'px system-ui,sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(String(q.options[lane]), 0, -gh / 2);
+        // keep text inside sign
+        const label = String(q.options[lane]);
+        ctx.fillText(label, 0, -gh / 2, gw - 8);
         ctx.restore();
       }
     }
 
-    // car
-    const carLane = run.carX;
-    const cx = laneX(carLane, GATE_HIT_Z + 0.02);
-    const cy = H * 0.82;
+    // car — bottom of road, scaled to lane width, fully on-canvas
+    const cx = laneX(run.carX, CAR_T, g);
+    const cy = roadY(CAR_T, g);
+    const laneWNear = (2 * roadHalf(CAR_T, g)) / 3;
+    // sprite local width ~52px; fit ~70% of lane
+    const carScale = Math.max(0.7, Math.min(1.55, (laneWNear * 0.72) / 52));
+    // ensure car bottom (local +18*scale) stays above canvas bottom with pad
+    const carBottomPad = 8;
+    const adjY = Math.min(cy, H - carBottomPad - 18 * carScale);
     if (shakeT > 0) {
       ctx.save();
       ctx.translate((Math.random() - 0.5) * 10 * shakeT, (Math.random() - 0.5) * 6 * shakeT);
     }
-    drawCar(cx, cy, 1.15, run.flash && run.flash.kind === 'ok');
+    drawCar(cx, adjY, carScale, run.flash && run.flash.kind === 'ok');
     if (shakeT > 0) ctx.restore();
 
-    // +points popup
     if (run.flash && run.flash.kind === 'ok' && run.flash.gained) {
-      const t = run.flash.t;
-      ctx.fillStyle = 'rgba(46,125,50,' + Math.min(1, t * 2) + ')';
-      ctx.font = 'bold 28px system-ui,sans-serif';
+      const ft = run.flash.t;
+      ctx.fillStyle = 'rgba(46,125,50,' + Math.min(1, ft * 2) + ')';
+      ctx.font = 'bold 26px system-ui,sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('+' + run.flash.gained, W / 2, H * 0.55 - (0.55 - t) * 40);
+      ctx.fillText('+' + run.flash.gained, W / 2, H * 0.48 - (0.55 - ft) * 36);
     }
-    // green/red flash overlay
     if (run.flash) {
       ctx.fillStyle =
         run.flash.kind === 'ok'
@@ -736,13 +779,15 @@
 
   function startAttempt() {
     return (async () => {
-      const rec = await fetchRemoteRecord();
-      mergeRemote(rec);
-      if (progress.attemptsUsed >= MAX_ATTEMPTS) {
-        paintLobby();
-        return;
+      if (!DEMO) {
+        const rec = await fetchRemoteRecord();
+        mergeRemote(rec);
+        if (progress.attemptsUsed >= MAX_ATTEMPTS) {
+          paintLobby();
+          return;
+        }
       }
-      const num = progress.attemptsUsed + 1;
+      const num = DEMO ? 1 : progress.attemptsUsed + 1;
       attempt = {
         num,
         score: 0,
@@ -900,6 +945,10 @@
     Sound.stopMusic();
     const score = attempt.score;
     const bestLevel = attempt.bestLevel;
+    if (DEMO) {
+      $('sum-sync').textContent = 'Demo mode — score not saved (' + score + ' pts).';
+      return;
+    }
     progress.attemptsUsed = Math.max(progress.attemptsUsed + 1, attempt.num);
     progress.attemptScores = (progress.attemptScores || []).concat([score]);
     progress.bestTotal = Math.max(progress.bestTotal, score);
@@ -1132,10 +1181,12 @@
 
   window.__IR_TEST__ = {
     Sound,
+    DEMO,
     ITEM_SEC,
     GATE_SPAWN,
     GATE_HIT_Z,
     GATE_DIST,
+    CAR_T,
     MAX_ATTEMPTS,
     LEVELS,
     ITEMS,
@@ -1144,14 +1195,40 @@
     getRun: () => run,
     getLearners: () => learners,
     itemDuration,
+    roadGeom,
+    laneX,
+    roadY,
+    depthToT,
+    forceDemoStart: (level) => {
+      player = player.name ? player : { name: 'Demo Driver', grade: '11', section: 'TEST' };
+      attempt = {
+        num: 1,
+        score: 0,
+        unlocked: LEVELS,
+        bestLevel: 0,
+        totalCorrect: 0,
+        active: true,
+      };
+      Sound.unlock();
+      startLevel(level || 1);
+    },
   };
+
+  // Auto-demo entry for headless tests
+  if (DEMO) {
+    $('load-status').textContent = 'Demo mode — scores not saved.';
+  }
 
   loadLearners();
   Sound.paintBtn();
   const btnSound = $('btn-sound');
   if (btnSound) btnSound.onclick = () => Sound.toggle();
-  window.addEventListener('resize', () => {
-    if (screens.game.classList.contains('active')) resize();
-  });
+  function onViewportChange() {
+    if (screens.game.classList.contains('active')) {
+      resize();
+    }
+  }
+  window.addEventListener('resize', onViewportChange);
+  window.addEventListener('orientationchange', () => setTimeout(onViewportChange, 120));
   show('start');
 })();

@@ -10,3 +10,6 @@ Temple Run–style integer practice for Grade 11–12 ADM. Live: https://raymart
 
 - Web Audio BGM/SFX (no audio files); header 🔊 toggle remembered in localStorage
 - Learners from ADM Portal Apps Script `action=config` (Learners sheet)
+
+## Projector leaderboard
+Open `leaderboard.html` (or from in-game **Open full leaderboard**) for the big screen view — Overall / Grade 11 / Grade 12, auto-refresh ~18s.

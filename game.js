@@ -408,29 +408,52 @@
     }
   }
 
+  const MEDALS = ['', '🥇', '🥈', '🥉'];
+
+  function sortBoard(list) {
+    // Points desc, then highest level desc, then earliest finish (ts asc)
+    return list.slice().sort((a, b) => {
+      const pt = Number(b.total) - Number(a.total);
+      if (pt) return pt;
+      const lv = Number(b.bestLevel || 0) - Number(a.bestLevel || 0);
+      if (lv) return lv;
+      const ta = Number(a.ts) || Number.MAX_SAFE_INTEGER;
+      const tb = Number(b.ts) || Number.MAX_SAFE_INTEGER;
+      return ta - tb;
+    });
+  }
+
   function renderBoard(entries, filter) {
     const tb = $('board-body');
     tb.innerHTML = '';
     let list = entries.slice();
     if (filter === '11') list = list.filter((e) => String(e.grade) === '11');
     if (filter === '12') list = list.filter((e) => String(e.grade) === '12');
-    list.sort((a, b) => Number(b.total) - Number(a.total) || Number(b.bestLevel) - Number(a.bestLevel));
+    list = sortBoard(list);
     if (!list.length) {
       tb.innerHTML = '<tr><td colspan="5" class="muted">No scores yet. Be the first!</td></tr>';
       return;
     }
     list.slice(0, 100).forEach((e, i) => {
+      const rank = i + 1;
       const tr = document.createElement('tr');
+      if (rank <= 3) tr.className = 'rank-' + rank;
+      const gs =
+        'G' +
+        esc(e.grade) +
+        (e.section ? ' · ' + esc(e.section) : '');
+      const medal = MEDALS[rank] || '';
       tr.innerHTML =
-        '<td>' +
-        (i + 1) +
+        '<td class="rank-cell">' +
+        (medal ? medal + ' ' : '') +
+        rank +
         '</td><td>' +
         esc(e.name) +
-        '</td><td>G' +
-        esc(e.grade) +
-        '</td><td>' +
+        '</td><td class="gs">' +
+        gs +
+        '</td><td class="pts">' +
         Number(e.total) +
-        '</td><td>L' +
+        '</td><td class="lvl">L' +
         Number(e.bestLevel || 0) +
         '</td>';
       tb.appendChild(tr);

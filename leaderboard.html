@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a3d2e">
+<title>Integer Racer Leaderboard · Bago NHS</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  background:radial-gradient(ellipse at top,#0f4d3a 0%,#062a1f 45%,#02140e 100%);color:#fff}
+body{padding:16px 18px 24px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ffe566,#f5c518);
+  color:#062a1f;display:grid;place-items:center;font-weight:900;font-size:1.15rem;
+  box-shadow:0 3px 0 #c9a012,0 8px 20px rgba(0,0,0,.35)}
+h1{margin:0;font-size:clamp(1.2rem,2.4vw,1.85rem);letter-spacing:.3px;line-height:1.15}
+h1 small{display:block;font-weight:600;opacity:.8;font-size:.55em;margin-top:3px}
+.meta{text-align:right;font-size:.85rem;opacity:.9}
+.meta strong{color:#ffe566}
+.tabs{display:none;gap:8px;margin-bottom:12px}
+.tabs button{flex:1;padding:10px 12px;border:0;border-radius:999px;font-weight:800;background:#1a4d3a;color:#fff;cursor:pointer}
+.tabs button.on{background:linear-gradient(180deg,#ffe566,#f5c518);color:#062a1f}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.panel{background:rgba(255,255,255,.06);border:1px solid rgba(245,197,24,.28);border-radius:16px;
+  padding:12px 12px 14px;backdrop-filter:blur(6px);box-shadow:0 10px 30px rgba(0,0,0,.25);min-height:280px}
+.panel h2{margin:0 0 4px;font-size:clamp(1rem,1.6vw,1.25rem);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.panel h2 .count{font-size:.72rem;font-weight:700;background:#f5c518;color:#062a1f;padding:3px 9px;border-radius:999px}
+.podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:6px;margin:10px 0 12px;align-items:end}
+.pod{background:rgba(0,0,0,.22);border-radius:12px;padding:10px 6px 8px;text-align:center;border:1px solid transparent}
+.pod .medal{font-size:1.55rem;line-height:1}
+.pod .nm{font-weight:800;font-size:clamp(.72rem,1.1vw,.92rem);margin-top:4px;word-break:break-word}
+.pod .sc{font-weight:900;color:#ffe566;font-size:clamp(.95rem,1.4vw,1.2rem);margin-top:2px}
+.pod .sub{font-size:.68rem;opacity:.8;margin-top:2px}
+.pod.g{border-color:#f5c51888;background:linear-gradient(180deg,#5d4a12aa,#3a2e08aa);min-height:110px}
+.pod.s{border-color:#cfd8dc88;background:linear-gradient(180deg,#546e7aaa,#37474faa);min-height:92px}
+.pod.b{border-color:#ffab9188;background:linear-gradient(180deg,#6d4c41aa,#4e342eaa);min-height:84px}
+table{width:100%;border-collapse:collapse;font-size:clamp(.72rem,1.15vw,.9rem)}
+th,td{padding:7px 5px;border-bottom:1px solid rgba(255,255,255,.1);text-align:left}
+th{color:#ffe566;font-size:.75em;letter-spacing:.4px;text-transform:uppercase}
+tr.r1{background:rgba(245,197,24,.14)}
+tr.r2{background:rgba(207,216,220,.12)}
+tr.r3{background:rgba(255,171,145,.12)}
+td.rk{font-weight:900;white-space:nowrap;width:3.2em}
+td.pts{font-weight:900;color:#ffe566}
+td.lvl{font-weight:700;color:#81d4fa}
+.empty{opacity:.65;text-align:center;padding:28px 8px;font-size:.92rem}
+.foot{margin-top:14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.78rem;opacity:.85}
+.foot a{color:#ffe566;font-weight:700;text-decoration:none}
+@media (max-width:900px){
+  .grid{grid-template-columns:1fr}
+  .tabs{display:flex}
+  .panel{display:none}
+  .panel.show{display:block}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">
+    <div class="logo">IR</div>
+    <h1>Integer Racer Leaderboard<small>Bago National High School · ADM</small></h1>
+  </div>
+  <div class="meta">
+    <div>Last updated: <strong id="updated">—</strong></div>
+    <div id="counts">Players: —</div>
+  </div>
+</div>
+
+<div class="tabs" id="tabs">
+  <button type="button" data-tab="all" class="on">Overall</button>
+  <button type="button" data-tab="11">Grade 11</button>
+  <button type="button" data-tab="12">Grade 12</button>
+</div>
+
+<div class="grid" id="grid">
+  <section class="panel show" data-panel="all" id="panel-all"></section>
+  <section class="panel" data-panel="11" id="panel-11"></section>
+  <section class="panel" data-panel="12" id="panel-12"></section>
+</div>
+
+<div class="foot">
+  <span>Auto-refreshes every 18s · No answers shown · 1 try per learner</span>
+  <a href="./">← Back to Integer Racer</a>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const API_EXPORT = 'https://mantledb.sh/v2/export/bnhs-iracer-nov2026';
+  const MAX_PLAUSIBLE = 5000;
+  const MEDALS = ['', '🥇', '🥈', '🥉'];
+  const REFRESH_MS = 18000;
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function sortBoard(list) {
+    return list.slice().sort(function (a, b) {
+      var pt = Number(b.total) - Number(a.total);
+      if (pt) return pt;
+      var lv = Number(b.bestLevel || 0) - Number(a.bestLevel || 0);
+      if (lv) return lv;
+      var ta = Number(a.ts) || Number.MAX_SAFE_INTEGER;
+      var tb = Number(b.ts) || Number.MAX_SAFE_INTEGER;
+      return ta - tb;
+    });
+  }
+
+  function filterGrade(list, g) {
+    if (g === 'all') return list;
+    return list.filter(function (e) { return String(e.grade) === String(g); });
+  }
+
+  function podiumHtml(top) {
+    var slots = [top[1], top[0], top[2]]; // silver, gold, bronze visual order
+    var classes = ['s', 'g', 'b'];
+    var ranks = [2, 1, 3];
+    var html = '<div class="podium">';
+    for (var i = 0; i < 3; i++) {
+      var e = slots[i];
+      html += '<div class="pod ' + classes[i] + '">';
+      html += '<div class="medal">' + MEDALS[ranks[i]] + '</div>';
+      if (e) {
+        html += '<div class="nm">' + esc(e.name) + '</div>';
+        html += '<div class="sc">' + Number(e.total) + '</div>';
+        html += '<div class="sub">G' + esc(e.grade) + (e.section ? ' · ' + esc(e.section) : '') +
+          ' · L' + Number(e.bestLevel || 0) + '</div>';
+      } else {
+        html += '<div class="nm" style="opacity:.5">—</div><div class="sc"> </div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function tableHtml(list, limit) {
+    var rows = list.slice(0, limit);
+    if (!rows.length) return '<div class="empty">No scores yet</div>';
+    var html = '<table><thead><tr><th>#</th><th>Name</th><th>Grade / Sec</th><th>Pts</th><th>Lvl</th></tr></thead><tbody>';
+    rows.forEach(function (e, i) {
+      var rank = i + 1;
+      var cls = rank <= 3 ? ' class="r' + rank + '"' : '';
+      var gs = 'G' + esc(e.grade) + (e.section ? ' · ' + esc(e.section) : '');
+      html += '<tr' + cls + '><td class="rk">' + (MEDALS[rank] ? MEDALS[rank] + ' ' : '') + rank +
+        '</td><td>' + esc(e.name) + '</td><td>' + gs + '</td><td class="pts">' + Number(e.total) +
+        '</td><td class="lvl">L' + Number(e.bestLevel || 0) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function renderPanel(el, title, list, limit) {
+    el.innerHTML =
+      '<h2>' + title + ' <span class="count">' + list.length + ' player' + (list.length === 1 ? '' : 's') + '</span></h2>' +
+      podiumHtml(list) +
+      tableHtml(list, limit);
+  }
+
+  function fmtTime(d) {
+    try {
+      return d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true }) +
+        ' (Asia/Manila)';
+    } catch (e) {
+      return d.toISOString();
+    }
+  }
+
+  async function load() {
+    var entries = [];
+    try {
+      var r = await fetch(API_EXPORT + '?t=' + Date.now(), { cache: 'no-store' });
+      var j = await r.json();
+      var bag = (j && j.entries) || {};
+      Object.keys(bag).forEach(function (path) {
+        if (path.indexOf('scores/') === 0 && bag[path] && bag[path].name) entries.push(bag[path]);
+      });
+      entries = entries.filter(function (e) { return Number(e.total) <= MAX_PLAUSIBLE; });
+    } catch (err) {
+      document.getElementById('updated').textContent = 'offline / error';
+      return;
+    }
+    var all = sortBoard(entries);
+    var g11 = sortBoard(filterGrade(entries, '11'));
+    var g12 = sortBoard(filterGrade(entries, '12'));
+    renderPanel(document.getElementById('panel-all'), 'Overall Top 10', all, 10);
+    renderPanel(document.getElementById('panel-11'), 'Grade 11 Top 10', g11, 10);
+    renderPanel(document.getElementById('panel-12'), 'Grade 12 Top 10', g12, 10);
+    document.getElementById('updated').textContent = fmtTime(new Date());
+    document.getElementById('counts').textContent =
+      'Players: ' + all.length + ' total · G11 ' + g11.length + ' · G12 ' + g12.length;
+  }
+
+  // Mobile tabs
+  document.getElementById('tabs').addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-tab]');
+    if (!btn) return;
+    var tab = btn.getAttribute('data-tab');
+    document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.toggle('on', b === btn); });
+    document.querySelectorAll('.panel').forEach(function (p) {
+      p.classList.toggle('show', p.getAttribute('data-panel') === tab);
+    });
+  });
+
+  load();
+  setInterval(load, REFRESH_MS);
+})();
+</script>
+</body>
+</html>

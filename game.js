@@ -12,7 +12,7 @@
   const LEVELS = 5;
   const ITEMS = 20;
   const LIVES = 3;
-  const MAX_ATTEMPTS = 2;
+  const MAX_ATTEMPTS = 1;
   const BASE_PTS = [0, 10, 20, 30, 40, 50];
   // Exact-ish seconds from spawn until gate hit, per level
   const ITEM_SEC = [0, 8, 7, 6, 6, 7];
@@ -849,7 +849,7 @@
 
   function updateHud() {
     if (!run) return;
-    $('hud-attempt').textContent = 'Attempt ' + (attempt ? attempt.num : '?') + ' of ' + MAX_ATTEMPTS;
+    $('hud-attempt').textContent = MAX_ATTEMPTS === 1 ? '1 try only' : ('Attempt ' + (attempt ? attempt.num : '?') + ' of ' + MAX_ATTEMPTS);
     $('hud-level').textContent = 'L' + run.level;
     $('hud-q').textContent = run.qIndex + 1 + '/' + ITEMS;
     $('hud-score').textContent = String((attempt ? attempt.score : 0) + run.score);
@@ -869,6 +869,8 @@
     if (run.gateHit || run.over) return;
     run.gateHit = true;
     const q = currentGate();
+    // Same index used when drawing options[lane] at laneX(lane)
+    lane = Math.max(0, Math.min(2, lane | 0));
     const chosen = q.options[lane];
     const ok = chosen === q.answer;
     if (ok) {
@@ -941,7 +943,7 @@
       finishAttempt().then(() => paintSummaryButtons(false));
     } else {
       $('sum-sync').textContent =
-        'Attempt ' + attempt.num + ' of ' + MAX_ATTEMPTS + ' · Level ' + (run.level + 1) + ' next.';
+        (MAX_ATTEMPTS === 1 ? '1 try' : ('Attempt ' + attempt.num + ' of ' + MAX_ATTEMPTS)) + ' · Level ' + (run.level + 1) + ' next.';
       paintSummaryButtons(true);
     }
     show('summary');
@@ -977,18 +979,8 @@
     $('sum-sync').textContent = 'Saving best score…';
     const ok = await submitRecord(entry);
     $('sum-sync').textContent = ok
-      ? 'Saved. Best of your tries: ' +
-        progress.bestTotal +
-        ' · Attempts used: ' +
-        progress.attemptsUsed +
-        '/' +
-        MAX_ATTEMPTS
-      : 'Saved on this phone. Best: ' +
-        progress.bestTotal +
-        ' · Attempts: ' +
-        progress.attemptsUsed +
-        '/' +
-        MAX_ATTEMPTS;
+      ? 'Saved. Your score: ' + progress.bestTotal + ' · Tries used: ' + progress.attemptsUsed + '/' + MAX_ATTEMPTS
+      : 'Saved on this phone. Score: ' + progress.bestTotal + ' · Tries: ' + progress.attemptsUsed + '/' + MAX_ATTEMPTS;
   }
 
   function paintSummaryButtons(canNext) {
@@ -997,7 +989,7 @@
     $('btn-next').textContent = 'Next Level';
     if (!canNext && left > 0) {
       $('btn-retry').style.display = '';
-      $('btn-retry').textContent = 'Start Attempt ' + (progress.attemptsUsed + 1) + ' of ' + MAX_ATTEMPTS;
+      $('btn-retry').textContent = MAX_ATTEMPTS === 1 ? 'Start Run (1 try)' : ('Start Attempt ' + (progress.attemptsUsed + 1) + ' of ' + MAX_ATTEMPTS);
     } else {
       $('btn-retry').style.display = 'none';
     }
@@ -1033,7 +1025,12 @@
       const fracLeft = Math.max(0, run.itemT / run.itemMax);
       run.gateZ = GATE_HIT_Z + GATE_DIST * fracLeft;
       if (run.itemT <= 0 || run.gateZ <= GATE_HIT_Z) {
-        hitGate(Math.round(run.carX));
+        // Use the lane the learner chose (targetLane), not Math.round(carX).
+        // Rounding mid-slide scored the wrong gate while the car was still moving —
+        // e.g. pressing ◀ toward the correct answer but registering the middle option.
+        run.carX = run.targetLane;
+        run.lane = run.targetLane;
+        hitGate(run.targetLane);
       }
       updateHud();
     }
@@ -1107,25 +1104,23 @@
       const msg = document.createElement('div');
       msg.className = 'no-tries';
       msg.innerHTML =
-        '<strong>No tries left</strong><br>You used both attempts.<br>Your best score: <b>' +
+        '<strong>No tries left</strong><br>Your score: <b>' +
         progress.bestTotal +
         '</b>' +
         (progress.bestLevel ? ' (reached L' + progress.bestLevel + ')' : '') +
-        '<br><span class="note" style="opacity:1;color:#b71c1c">Highest of your 2 tries is on the leaderboard.</span>';
+        '<br><span class="note" style="opacity:1;color:#b71c1c">That score is on the leaderboard.</span>';
       box.appendChild(msg);
       return;
     }
     const b = document.createElement('button');
     b.className = 'lvl';
-    b.textContent = 'Start Attempt ' + (progress.attemptsUsed + 1) + ' of ' + MAX_ATTEMPTS;
+    b.textContent = MAX_ATTEMPTS === 1 ? 'Start Run (1 try)' : ('Start Attempt ' + (progress.attemptsUsed + 1) + ' of ' + MAX_ATTEMPTS);
     b.onclick = () => startAttempt();
     box.appendChild(b);
     const hint = document.createElement('p');
     hint.className = 'note';
     hint.textContent =
-      left +
-      (left === 1 ? ' try' : ' tries') +
-      ' left · One attempt = Levels 1→5 (fresh lives each level) · Highest score counts';
+      '1 try only · Levels 1→5 (fresh lives each level) · Your score goes on the leaderboard';
     box.appendChild(hint);
   }
 
@@ -1208,6 +1203,9 @@
     laneX,
     roadY,
     depthToT,
+    hitGate,
+    setLane,
+    currentGate,
     forceDemoStart: (level) => {
       player = player.name ? player : { name: 'Demo Driver', grade: '11', section: 'TEST' };
       attempt = {

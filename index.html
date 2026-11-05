@@ -88,7 +88,7 @@ th{background:#e8f5e9}
     <div class="hero">
       <div class="badge">Bago NHS · ADM</div>
       <strong>Drive. Hit the correct integer.</strong>
-      <div class="tag">Climb the school leaderboard · 2 tries · best score counts</div>
+      <div class="tag">Climb the school leaderboard · 1 try only</div>
     </div>
     <label for="inp-grade">Grade</label>
     <select id="inp-grade">
@@ -105,7 +105,7 @@ th{background:#e8f5e9}
     <div id="load-status">Loading class list…</div>
     <button class="primary" id="btn-play" disabled>Continue</button>
     <button class="secondary" id="btn-go-board">Leaderboard</button>
-    <p class="note">2 tries only · Highest score counts · 5 levels × 20 items · 3 lives per level (lose them → next level with fresh lives) · Wrong hits never show the answer.</p>
+    <p class="note">1 try only · 5 levels × 20 items · 3 lives per level (lose them → next level with fresh lives) · Wrong hits never show the answer.</p>
     <div id="levels-wrap" style="display:none;margin-top:12px">
       <div id="player-label"></div>
       <div id="level-btns"></div>
@@ -116,7 +116,7 @@ th{background:#e8f5e9}
 <section id="screen-game" class="screen">
   <div id="hud">
     <div id="hud-top">
-      <span id="hud-attempt">Attempt 1 of 2</span>
+      <span id="hud-attempt">1 try only</span>
       <span id="hud-level">L1</span>
       <span id="hud-q">1/20</span>
       <span>Score <span id="hud-score">0</span></span>
@@ -158,11 +158,11 @@ th{background:#e8f5e9}
       <tbody id="board-body"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
     </table>
     <button class="secondary" id="btn-board-back">Back</button>
-    <p class="note">Best of each student's 2 tries · Refresh after classmates finish.</p>
+    <p class="note">Each student's score · Refresh after classmates finish.</p>
   </div>
 </section>
 
-<script src="questions.js?v=20261105e"></script>
-<script src="game.js?v=20261105e"></script>
+<script src="questions.js?v=20261105f"></script>
+<script src="game.js?v=20261105f"></script>
 </body>
 </html>

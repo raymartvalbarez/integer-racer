@@ -11,7 +11,11 @@
     }
     return a;
   }
-  function fmt(n) { return n < 0 ? '(' + n + ')' : String(n); }
+  function fmt(n) {
+    // Unicode minus inside parentheses so '5 − (−3)' reads clearly (not ASCII hyphen)
+    if (n < 0) return '(−' + Math.abs(n) + ')';
+    return String(n);
+  }
   function uniqOpts(correct, distractors) {
     const set = new Set([correct]);
     for (const d of distractors) {
@@ -233,6 +237,77 @@
     return make(prompt, ans, distractors);
   }
 
+
+  // Independent re-evaluation of the displayed prompt (order of ops, unary minus, parens).
+  // Used as a hard gate so a generator bug cannot ship a wrong "answer" field.
+  function evalPrompt(prompt) {
+    const s = String(prompt)
+      .replace(/\s*=\s*\?\s*$/, '')
+      .replace(/×/g, '*')
+      .replace(/÷/g, '/')
+      .replace(/[−–—]/g, '-')
+      .trim();
+    const tokens = [];
+    let i = 0;
+    while (i < s.length) {
+      const c = s[i];
+      if (c === ' ') { i++; continue; }
+      if (c === '(' || c === ')' || c === '+' || c === '*' || c === '/') {
+        tokens.push(c); i++; continue;
+      }
+      if (c === '-') {
+        const prev = tokens[tokens.length - 1];
+        if (prev !== undefined && (typeof prev === 'number' || prev === ')')) {
+          tokens.push('-'); i++; continue;
+        }
+        i++;
+        let j = i;
+        while (j < s.length && /[0-9]/.test(s[j])) j++;
+        if (j === i) throw new Error('bad unary');
+        tokens.push(-Number(s.slice(i, j)));
+        i = j;
+        continue;
+      }
+      if (/[0-9]/.test(c)) {
+        let j = i;
+        while (j < s.length && /[0-9]/.test(s[j])) j++;
+        tokens.push(Number(s.slice(i, j)));
+        i = j;
+        continue;
+      }
+      throw new Error('bad char ' + c);
+    }
+    const prec = { '+': 1, '-': 1, '*': 2, '/': 2 };
+    const out = [], ops = [];
+    for (const tok of tokens) {
+      if (typeof tok === 'number') out.push(tok);
+      else if (tok === '(') ops.push(tok);
+      else if (tok === ')') {
+        while (ops.length && ops[ops.length - 1] !== '(') out.push(ops.pop());
+        ops.pop();
+      } else {
+        while (ops.length && ops[ops.length - 1] !== '(' && prec[ops[ops.length - 1]] >= prec[tok]) {
+          out.push(ops.pop());
+        }
+        ops.push(tok);
+      }
+    }
+    while (ops.length) out.push(ops.pop());
+    const st = [];
+    for (const tok of out) {
+      if (typeof tok === 'number') { st.push(tok); continue; }
+      const b = st.pop(), a = st.pop();
+      if (tok === '+') st.push(a + b);
+      else if (tok === '-') st.push(a - b);
+      else if (tok === '*') st.push(a * b);
+      else if (tok === '/') st.push(a / b);
+    }
+    if (st.length !== 1 || !Number.isFinite(st[0])) throw new Error('eval');
+    const v = st[0];
+    if (Math.abs(v - Math.round(v)) > 1e-9) throw new Error('non-int');
+    return Math.round(v);
+  }
+
   const GENERATORS = [null, genL1, genL2, genL3, genL4, genL5];
 
   function generateLevel(level, count) {
@@ -240,13 +315,20 @@
     const items = [];
     const seen = new Set();
     let guard = 0;
-    while (items.length < count && guard < count * 50) {
+    while (items.length < count && guard < count * 80) {
       guard++;
       const q = gen();
       if (!Number.isFinite(q.answer)) continue;
+      let trueAns;
+      try { trueAns = evalPrompt(q.prompt); } catch (e) { continue; }
+      // Force the stored answer to match the displayed expression
+      q.answer = trueAns;
+      // Rebuild options so exactly one equals the true answer
+      q.options = uniqOpts(trueAns, (q.options || []).filter((o) => o !== trueAns));
       if (!q.options.includes(q.answer)) continue;
       if (q.options.length !== 3) continue;
       if (new Set(q.options).size !== 3) continue;
+      if (q.options.filter((o) => o === q.answer).length !== 1) continue;
       const key = q.prompt + '|' + q.answer;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -270,5 +352,5 @@
     return report;
   }
 
-  global.IRQuestions = { generateLevel, verifySample, generators: GENERATORS };
+  global.IRQuestions = { generateLevel, verifySample, generators: GENERATORS, evalPrompt, uniqOpts, fmt };
 })(typeof window !== 'undefined' ? window : global);

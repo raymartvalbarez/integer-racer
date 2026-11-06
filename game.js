@@ -455,16 +455,89 @@
       } catch (e) {}
       if (Number(best.total) > MAX_PLAUSIBLE) return false;
       best.attempts = Math.min(MAX_ATTEMPTS, Math.max(0, Number(best.attempts) || 0));
-      await fetch(path, {
+      const postRes = await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(best),
       });
+      if (!postRes || !postRes.ok) return false;
+      try { const pj = await postRes.clone().json(); if (pj && pj.success === false) return false; } catch (e) {}
       remoteRecord = best;
       return true;
     } catch (e) {
       return false;
     }
+  }
+
+
+  /* ---- Reliable upload: pending queue + retry (added Nov 6 2026) ---- */
+  var remoteConfirmed = false;
+  function pendingKey(p) { return 'ir-pending-' + keyOf(p); }
+  function setPending(entry) {
+    if (DEMO) return;
+    try { localStorage.setItem(pendingKey(entry), JSON.stringify(entry)); } catch (e) {}
+  }
+  function clearPending(entry) {
+    try { localStorage.removeItem(pendingKey(entry)); } catch (e) {}
+  }
+  function hasPending() {
+    try { return !!(player && localStorage.getItem(pendingKey(player))); } catch (e) { return false; }
+  }
+  function sleepMs(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function submitWithRetry(entry) {
+    if (DEMO) return false;
+    var waits = [0, 1500, 4000, 9000];
+    for (var i = 0; i < waits.length; i++) {
+      if (waits[i]) await sleepMs(waits[i]);
+      var ok = false;
+      try { ok = await submitRecord(entry); } catch (e) { ok = false; }
+      if (ok) { clearPending(entry); remoteConfirmed = true; return true; }
+    }
+    return false;
+  }
+  var flushing = false;
+  async function flushPending() {
+    if (DEMO || flushing) return;
+    flushing = true;
+    var keys = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('ir-pending-') === 0) keys.push(k);
+      }
+      for (var j = 0; j < keys.length; j++) {
+        var e = null;
+        try { e = JSON.parse(localStorage.getItem(keys[j]) || 'null'); } catch (x) {}
+        if (!e || !e.name) { localStorage.removeItem(keys[j]); continue; }
+        await submitWithRetry(e);
+      }
+    } finally { flushing = false; }
+    try { if (keys.length && player && progress) paintLobby(); } catch (e) {}
+  }
+  function afterRemote(rec) {
+    if (DEMO || !player) return;
+    remoteConfirmed = !!(rec && rec.name && Number(rec.total) >= Number(progress.bestTotal || 0) && Number(rec.attempts) >= 1);
+    // Heal old phones: try used locally but no confirmed server row -> queue upload.
+    if (!remoteConfirmed && progress.attemptsUsed >= MAX_ATTEMPTS && !hasPending()) {
+      setPending({
+        name: player.name, grade: player.grade, section: player.section || '',
+        total: progress.bestTotal, bestLevel: progress.bestLevel,
+        attempts: progress.attemptsUsed, attemptScores: (progress.attemptScores || []).slice(-4),
+        ts: Date.now(),
+      });
+    }
+    if (hasPending()) flushPending();
+  }
+  function boardNote() {
+    if (hasPending()) return 'Saved on this phone only — not yet on the leaderboard. It will upload automatically when you are online (reopen this page with internet).';
+    if (remoteConfirmed) return 'That score is on the leaderboard.';
+    return 'Checking the leaderboard… open this page with internet to confirm.';
+  }
+  if (!DEMO) {
+    window.addEventListener('online', function () { flushPending(); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) flushPending(); });
+    setInterval(function () { if (navigator.onLine !== false) flushPending(); }, 30000);
+    setTimeout(flushPending, 1500);
   }
 
   const MEDALS = ['', '🥇', '🥈', '🥉'];
@@ -871,7 +944,7 @@
     return (async () => {
       if (!DEMO) {
         const rec = await fetchRemoteRecord();
-        mergeRemote(rec);
+        mergeRemote(rec); afterRemote(rec);
         if (progress.attemptsUsed >= MAX_ATTEMPTS) {
           clearOpenAttempt();
           saveLocal();
@@ -1085,10 +1158,11 @@
       ts: Date.now(),
     };
     $('sum-sync').textContent = 'Saving best score…';
-    const ok = await submitRecord(entry);
+    setPending(entry);
+    const ok = await submitWithRetry(entry);
     $('sum-sync').textContent = ok
-      ? 'Saved. Your score: ' + progress.bestTotal + ' · Tries used: ' + progress.attemptsUsed + '/' + MAX_ATTEMPTS
-      : 'Saved on this phone. Score: ' + progress.bestTotal + ' · Tries: ' + progress.attemptsUsed + '/' + MAX_ATTEMPTS;
+      ? 'Saved online — on the leaderboard. Your score: ' + progress.bestTotal + ' · Tries used: ' + progress.attemptsUsed + '/' + MAX_ATTEMPTS
+      : 'No internet — saved on this phone only. It will upload automatically when you are online (keep or reopen this page). Score: ' + progress.bestTotal + ' · Tries: ' + progress.attemptsUsed + '/' + MAX_ATTEMPTS;
   }
 
   function paintSummaryButtons(canNext) {
@@ -1216,7 +1290,7 @@
         progress.bestTotal +
         '</b>' +
         (progress.bestLevel ? ' (reached L' + progress.bestLevel + ')' : '') +
-        '<br><span class="note" style="opacity:1;color:#b71c1c">That score is on the leaderboard.</span>';
+        '<br><span class="note" style="opacity:1;color:#b71c1c">' + boardNote() + '</span>';
       box.appendChild(msg);
       return;
     }
@@ -1260,7 +1334,7 @@
     $('btn-play').disabled = true;
     $('btn-play').textContent = 'Checking tries…';
     const rec = await fetchRemoteRecord();
-    mergeRemote(rec);
+    mergeRemote(rec); afterRemote(rec);
     $('btn-play').disabled = false;
     $('btn-play').textContent = 'Continue';
     paintLobby();

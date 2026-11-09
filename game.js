@@ -10,7 +10,7 @@
     'https://script.google.com/macros/s/AKfycbwGMSP8NmPT4GYMJZTw4qruizfFd5wzORZHZRM-HOUJOSQyyg3Gx20L5MEWsqT5EFdl-w/exec';
 
   const LEVELS = 5;
-  const ITEMS = 8;
+  const ITEMS = 20;
   const LIVES = 3;
   const MAX_ATTEMPTS = 1;
   const BASE_PTS = [0, 10, 20, 30, 40, 50];
@@ -1334,7 +1334,7 @@
     hint.className = 'note';
     hint.textContent = oa
       ? 'Your phone saved your place. You cannot restart from Level 1.'
-      : '1 try only · 5 levels × 8 items (40 total) · Leaderboard saves your best · Nov. 10, 2026.';
+      : '1 try only · 5 levels × 20 items (100 total) · Leaderboard saves your best · Nov. 10, 2026.';
     box.appendChild(hint);
   }
 

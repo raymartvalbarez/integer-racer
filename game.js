@@ -28,9 +28,10 @@
   const SESSION_DATE = 'Nov. 10, 2026';
   const SESSION_ISO = '2026-11-10';
   const SESSION_KEY = 'nov10';
-  // Scored play open for ADM day (Asia/Manila): Nov 9–10, 2026. Demo always works.
+  // Scored play for the Nov. 10 ADM activity stays in the same score namespace.
+  // Window (Asia/Manila): Nov 9, 2026 12:00 AM through Nov 13, 2026 11:59 PM. Demo always works. 1-try rule unchanged.
   const OPEN_FROM_MS = Date.parse('2026-11-09T00:00:00+08:00');
-  const OPEN_UNTIL_MS = Date.parse('2026-11-10T23:59:59.999+08:00');
+  const OPEN_UNTIL_MS = Date.parse('2026-11-13T23:59:59.999+08:00');
   function isSessionOpen() {
     var now = Date.now();
     return now >= OPEN_FROM_MS && now <= OPEN_UNTIL_MS;
@@ -38,7 +39,7 @@
 
 
   function sessionClosedMessage() {
-    return 'This ADM activity is for Nov. 10, 2026 (Asia/Manila). Use ?demo=1 to practice anytime.';
+    return 'This Nov. 10 ADM activity is open through Nov. 13, 2026, 11:59 PM (Asia/Manila). Use ?demo=1 to practice anytime.';
   }
 
 
@@ -1334,7 +1335,7 @@
     hint.className = 'note';
     hint.textContent = oa
       ? 'Your phone saved your place. You cannot restart from Level 1.'
-      : '1 try only · 5 levels × 20 items (100 total) · Leaderboard saves your best · Nov. 10, 2026.';
+      : '1 try only · 5 levels × 20 items (100 total) · Leaderboard saves your best · Nov. 10 games, open through Nov. 13.';
     box.appendChild(hint);
   }
 

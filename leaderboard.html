@@ -49,6 +49,13 @@ td.lvl{font-weight:700;color:#81d4fa}
 .empty{opacity:.65;text-align:center;padding:28px 8px;font-size:.92rem}
 .foot{margin-top:14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.78rem;opacity:.85}
 .foot a{color:#ffe566;font-weight:700;text-decoration:none}
+
+.table-wrap{max-height:min(52vh,28rem);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin-top:2px}
+.table-wrap table thead th{position:sticky;top:0;z-index:1;background:rgba(8,16,24,.96)}
+.shown-note{margin:8px 0 0;font-size:.75rem;opacity:.8;text-align:center}
+@media (max-width:900px){
+  .table-wrap{max-height:min(60vh,32rem)}
+}
 @media (max-width:900px){
   .grid{grid-template-columns:1fr}
   .tabs{display:flex}
@@ -141,9 +148,9 @@ td.lvl{font-weight:700;color:#81d4fa}
   }
 
   function tableHtml(list, limit) {
-    var rows = list.slice(0, limit);
+    var rows = (limit && limit > 0) ? list.slice(0, limit) : list.slice();
     if (!rows.length) return '<div class="empty">No scores yet</div>';
-    var html = '<table><thead><tr><th>#</th><th>Name</th><th>Grade / Sec</th><th>Pts</th><th>Lvl</th></tr></thead><tbody>';
+    var html = '<div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Grade / Sec</th><th>Pts</th><th>Lvl</th></tr></thead><tbody>';
     rows.forEach(function (e, i) {
       var rank = i + 1;
       var cls = rank <= 3 ? ' class="r' + rank + '"' : '';
@@ -152,7 +159,10 @@ td.lvl{font-weight:700;color:#81d4fa}
         '</td><td>' + esc(e.name) + '</td><td>' + gs + '</td><td class="pts">' + Number(e.total) +
         '</td><td class="lvl">L' + Number(e.bestLevel || 0) + '</td></tr>';
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
+    if (limit && list.length > rows.length) {
+      html += '<p class="shown-note">Showing top ' + rows.length + ' of ' + list.length + '</p>';
+    }
     return html;
   }
 
@@ -190,8 +200,8 @@ td.lvl{font-weight:700;color:#81d4fa}
     var g11 = sortBoard(filterGrade(entries, '11'));
     var g12 = sortBoard(filterGrade(entries, '12'));
     renderPanel(document.getElementById('panel-all'), 'Overall Top 10', all, 10);
-    renderPanel(document.getElementById('panel-11'), 'Grade 11 Top 10', g11, 10);
-    renderPanel(document.getElementById('panel-12'), 'Grade 12 Top 10', g12, 10);
+    renderPanel(document.getElementById('panel-11'), 'Grade 11 · all players', g11, 0);
+    renderPanel(document.getElementById('panel-12'), 'Grade 12 · all players', g12, 0);
     document.getElementById('updated').textContent = fmtTime(new Date());
     document.getElementById('counts').textContent =
       'Players: ' + all.length + ' total · G11 ' + g11.length + ' · G12 ' + g12.length;

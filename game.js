@@ -583,11 +583,23 @@
     if (filter === '11') list = list.filter((e) => String(e.grade) === '11');
     if (filter === '12') list = list.filter((e) => String(e.grade) === '12');
     list = sortBoard(list);
+    var isGrade = (filter === '11' || filter === '12');
+    var shown = isGrade ? list : list.slice(0, 10);
+    var cap = document.getElementById('board-caption');
+    if (cap) {
+      if (!list.length) {
+        cap.textContent = isGrade ? ('Grade ' + filter + ' · no scores yet') : 'Overall · no scores yet';
+      } else if (isGrade) {
+        cap.textContent = 'Grade ' + filter + ' · all ' + list.length + ' player' + (list.length === 1 ? '' : 's');
+      } else {
+        cap.textContent = 'Overall · Top 10' + (list.length > 10 ? ' of ' + list.length : '');
+      }
+    }
     if (!list.length) {
       tb.innerHTML = '<tr><td colspan="5" class="muted">No scores yet. Be the first!</td></tr>';
       return;
     }
-    list.slice(0, 100).forEach((e, i) => {
+    shown.forEach((e, i) => {
       const rank = i + 1;
       const tr = document.createElement('tr');
       if (rank <= 3) tr.className = 'rank-' + rank;

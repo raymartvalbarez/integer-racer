@@ -53,6 +53,19 @@ td.lvl{font-weight:700;color:#81d4fa}
 .table-wrap{max-height:min(52vh,28rem);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin-top:2px}
 .table-wrap table thead th{position:sticky;top:0;z-index:1;background:rgba(8,16,24,.96)}
 .shown-note{margin:8px 0 0;font-size:.75rem;opacity:.8;text-align:center}
+
+.dates{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin:0 0 14px}
+.date-presets{display:flex;gap:8px;flex-wrap:wrap}
+.date-preset{padding:10px 14px;border:0;border-radius:999px;font-weight:800;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+.date-preset.on{background:linear-gradient(180deg,#ffe566,#f5c518);color:#0b1e33}
+.date-row{display:flex;gap:8px;flex:1;min-width:220px}
+.date-row label{flex:1;font-size:.75rem;opacity:.9;font-weight:700}
+.date-row input[type=date]{width:100%;margin-top:4px;padding:8px 10px;border:0;border-radius:10px;font-size:1rem;min-height:42px;color:#111}
+@media (max-width:900px){
+  .dates{flex-direction:column;align-items:stretch}
+  .date-presets{width:100%}
+  .date-preset{flex:1}
+}
 @media (max-width:900px){
   .table-wrap{max-height:min(60vh,32rem)}
 }
@@ -76,6 +89,17 @@ td.lvl{font-weight:700;color:#81d4fa}
   </div>
 </div>
 
+
+<div class="dates" id="board-dates">
+  <div class="date-presets">
+    <button type="button" class="date-preset on" data-preset="all">All time</button>
+    <button type="button" class="date-preset" data-preset="week">This week</button>
+  </div>
+  <div class="date-row">
+    <label>From <input type="date" id="board-from"></label>
+    <label>To <input type="date" id="board-to"></label>
+  </div>
+</div>
 <div class="tabs" id="tabs">
   <button type="button" data-tab="all" class="on">Overall</button>
   <button type="button" data-tab="11">Grade 11</button>
@@ -89,7 +113,7 @@ td.lvl{font-weight:700;color:#81d4fa}
 </div>
 
 <div class="foot">
-  <span>Auto-refreshes every 18s · No answers shown · 1 try per learner</span>
+  <span>Auto-refreshes every 18s · Dates are Asia/Manila · No answers shown · 1 try per learner</span>
   <a href="./">← Back to Integer Racer</a>
 </div>
 
@@ -100,6 +124,101 @@ td.lvl{font-weight:700;color:#81d4fa}
   const MAX_PLAUSIBLE = 5000;
   const MEDALS = ['', '🥇', '🥈', '🥉'];
   const REFRESH_MS = 18000;
+
+
+  function pad2(n) {
+    n = String(n);
+    return n.length < 2 ? '0' + n : n;
+  }
+  function manilaYmdFromMs(ms) {
+    var n = Number(ms);
+    if (!isFinite(n) || n <= 0) return '';
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(new Date(n));
+    } catch (err) {
+      return '';
+    }
+  }
+  function entryManilaYmd(e) {
+    return e ? manilaYmdFromMs(e.ts) : '';
+  }
+  function ymdParts(ymd) {
+    var m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
+  }
+  function addDaysYmd(ymd, days) {
+    var p = ymdParts(ymd);
+    if (!p) return '';
+    var dt = new Date(Date.UTC(p.y, p.mo - 1, p.d + days));
+    return dt.getUTCFullYear() + '-' + pad2(dt.getUTCMonth() + 1) + '-' + pad2(dt.getUTCDate());
+  }
+  function manilaWeekRange() {
+    var today = manilaYmdFromMs(Date.now());
+    var weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', weekday: 'short' }).format(new Date());
+    var offset = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[weekday];
+    if (offset == null) offset = 0;
+    return { from: addDaysYmd(today, -offset), to: addDaysYmd(today, 6 - offset) };
+  }
+  function prettyDateRange(from, to) {
+    function nice(ymd) {
+      var p = ymdParts(ymd);
+      if (!p) return ymd;
+      var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return months[p.mo - 1] + ' ' + p.d;
+    }
+    if (!from && !to) return 'All time';
+    if (from && to) return nice(from) + '–' + nice(to) + ', ' + from.slice(0, 4);
+    if (from) return 'From ' + nice(from);
+    return 'Through ' + nice(to);
+  }
+  function currentDateRange() {
+    var fEl = document.getElementById('board-from');
+    var tEl = document.getElementById('board-to');
+    return { from: (fEl && fEl.value) || '', to: (tEl && tEl.value) || '' };
+  }
+  function filterByDate(list, range) {
+    if (!range || (!range.from && !range.to)) return list.slice();
+    return list.filter(function (e) {
+      var ymd = entryManilaYmd(e);
+      if (!ymd) return false;
+      if (range.from && ymd < range.from) return false;
+      if (range.to && ymd > range.to) return false;
+      return true;
+    });
+  }
+  function countUndated(list) {
+    var n = 0;
+    list.forEach(function (e) { if (!entryManilaYmd(e)) n += 1; });
+    return n;
+  }
+  function setDatePreset(name) {
+    var from = document.getElementById('board-from');
+    var to = document.getElementById('board-to');
+    if (!from || !to) return;
+    document.querySelectorAll('.date-preset').forEach(function (b) {
+      b.classList.toggle('on', b.getAttribute('data-preset') === name);
+    });
+    if (name === 'all') {
+      from.value = '';
+      to.value = '';
+    } else if (name === 'week') {
+      var w = manilaWeekRange();
+      from.value = w.from;
+      to.value = w.to;
+    }
+  }
+  function syncDatePresetButtons() {
+    var range = currentDateRange();
+    var w = manilaWeekRange();
+    var preset = '';
+    if (!range.from && !range.to) preset = 'all';
+    else if (range.from === w.from && range.to === w.to) preset = 'week';
+    document.querySelectorAll('.date-preset').forEach(function (b) {
+      b.classList.toggle('on', preset !== '' && b.getAttribute('data-preset') === preset);
+    });
+  }
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -196,15 +315,39 @@ td.lvl{font-weight:700;color:#81d4fa}
       document.getElementById('updated').textContent = 'offline / error';
       return;
     }
-    var all = sortBoard(entries);
-    var g11 = sortBoard(filterGrade(entries, '11'));
-    var g12 = sortBoard(filterGrade(entries, '12'));
-    renderPanel(document.getElementById('panel-all'), 'Overall Top 10', all, 10);
-    renderPanel(document.getElementById('panel-11'), 'Grade 11 · all players', g11, 0);
-    renderPanel(document.getElementById('panel-12'), 'Grade 12 · all players', g12, 0);
+    var dateRange = currentDateRange();
+    var ranged = filterByDate(entries, dateRange);
+    var undatedHidden = (!dateRange.from && !dateRange.to) ? 0 : countUndated(entries);
+    var all = sortBoard(ranged);
+    var g11 = sortBoard(filterGrade(ranged, '11'));
+    var g12 = sortBoard(filterGrade(ranged, '12'));
+    var rangeLabel = prettyDateRange(dateRange.from, dateRange.to);
+    var undatedNote = undatedHidden ? (' · ' + undatedHidden + ' without a date in All time only') : '';
+    renderPanel(document.getElementById('panel-all'), 'Overall Top 10 · ' + rangeLabel, all, 10);
+    renderPanel(document.getElementById('panel-11'), 'Grade 11 · all players · ' + rangeLabel, g11, 0);
+    renderPanel(document.getElementById('panel-12'), 'Grade 12 · all players · ' + rangeLabel, g12, 0);
     document.getElementById('updated').textContent = fmtTime(new Date());
     document.getElementById('counts').textContent =
-      'Players: ' + all.length + ' total · G11 ' + g11.length + ' · G12 ' + g12.length;
+      'Players: ' + all.length + ' in range (' + rangeLabel + ') of ' + entries.length + ' total · G11 ' + g11.length + ' · G12 ' + g12.length + undatedNote;
+  }
+
+  var datesEl = document.getElementById('board-dates');
+  if (datesEl && !datesEl.getAttribute('data-bound')) {
+    datesEl.setAttribute('data-bound', '1');
+    datesEl.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.date-preset');
+      if (!btn) return;
+      setDatePreset(btn.getAttribute('data-preset'));
+      load();
+    });
+    ['board-from', 'board-to'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', function () {
+        syncDatePresetButtons();
+        load();
+      });
+    });
   }
 
   // Mobile tabs

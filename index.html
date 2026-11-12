@@ -90,6 +90,14 @@ td.lvl{font-weight:700;color:#0d47a1}
 #screen-board .board-scroll table{width:100%}
 #screen-board .board-scroll thead th{position:sticky;top:0;z-index:1}
 #screen-board .board-actions{flex:0 0 auto}
+
+.board-dates{margin:8px 0 4px}
+.date-presets{display:flex;gap:8px;margin-bottom:8px}
+.date-preset{flex:1;padding:10px 8px;border:0;border-radius:10px;font-weight:800;font-size:.85rem;background:#eee;color:#333;cursor:pointer}
+.date-preset.on{background:#1565c0;color:#fff}
+.date-row{display:flex;gap:8px}
+.date-row label{flex:1;margin:0;font-size:.78rem;font-weight:700;color:#333}
+.date-row input[type=date]{width:100%;margin-top:4px;padding:10px 8px;font-size:1rem;min-height:42px}
 #board-caption{margin:0 0 6px;font-size:.8rem;color:#555;font-weight:700}
 #screen-board table{font-size:.84rem}
 #screen-board th:nth-child(3),#screen-board td.gs{font-size:.78rem;color:#555}
@@ -173,6 +181,16 @@ td.lvl{font-weight:700;color:#0d47a1}
       <option value="11">Grade 11 (all)</option>
       <option value="12">Grade 12 (all)</option>
     </select>
+    <div class="board-dates" id="board-dates">
+      <div class="date-presets">
+        <button type="button" class="date-preset on" data-preset="all">All time</button>
+        <button type="button" class="date-preset" data-preset="week">This week</button>
+      </div>
+      <div class="date-row">
+        <label>From <input type="date" id="board-from"></label>
+        <label>To <input type="date" id="board-to"></label>
+      </div>
+    </div>
     <p id="board-caption" class="note" style="margin:0 0 6px">Overall · Top 10</p>
     <div class="board-scroll">
     <table>
@@ -183,12 +201,12 @@ td.lvl{font-weight:700;color:#0d47a1}
     <div class="board-actions">
     <a class="board-link" href="leaderboard.html" target="_blank" rel="noopener">Open full leaderboard ↗</a>
     <button class="secondary" id="btn-board-back">Back</button>
-    <p class="note">🥇🥈🥉 Top 3 highlighted · Overall shows Top 10 · Grade 11 &amp; 12 show everyone · Ties: points → level → earliest finish · 1 try each.</p>
+    <p class="note">🥇🥈🥉 Top 3 highlighted · Overall shows Top 10 · Grade 11 &amp; 12 show everyone · Dates are Asia/Manila · scores without a time show in All time only · Dates are Asia/Manila · scores without a time show in All time only · Ties: points → level → earliest finish · 1 try each.</p>
     </div>
   </div>
 </section>
 
 <script src="questions.js?v=20261112lb"></script>
-<script src="game.js?v=20261112lb"></script>
+<script src="game.js?v=20261112dr"></script>
 </body>
 </html>

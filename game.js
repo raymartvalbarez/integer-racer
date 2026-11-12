@@ -576,27 +576,128 @@
     });
   }
 
+  var lastBoardEntries = [];
+
+  function pad2(n) {
+    n = String(n);
+    return n.length < 2 ? '0' + n : n;
+  }
+  function manilaYmdFromMs(ms) {
+    var n = Number(ms);
+    if (!isFinite(n) || n <= 0) return '';
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(new Date(n));
+    } catch (err) {
+      return '';
+    }
+  }
+  function entryManilaYmd(e) {
+    return e ? manilaYmdFromMs(e.ts) : '';
+  }
+  function ymdParts(ymd) {
+    var m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
+  }
+  function addDaysYmd(ymd, days) {
+    var p = ymdParts(ymd);
+    if (!p) return '';
+    var dt = new Date(Date.UTC(p.y, p.mo - 1, p.d + days));
+    return dt.getUTCFullYear() + '-' + pad2(dt.getUTCMonth() + 1) + '-' + pad2(dt.getUTCDate());
+  }
+  function manilaWeekRange() {
+    var today = manilaYmdFromMs(Date.now());
+    var weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', weekday: 'short' }).format(new Date());
+    var offset = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[weekday];
+    if (offset == null) offset = 0;
+    return { from: addDaysYmd(today, -offset), to: addDaysYmd(today, 6 - offset) };
+  }
+  function prettyDateRange(from, to) {
+    function nice(ymd) {
+      var p = ymdParts(ymd);
+      if (!p) return ymd;
+      var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return months[p.mo - 1] + ' ' + p.d;
+    }
+    if (!from && !to) return 'All time';
+    if (from && to) return nice(from) + '–' + nice(to) + ', ' + from.slice(0, 4);
+    if (from) return 'From ' + nice(from);
+    return 'Through ' + nice(to);
+  }
+  function currentDateRange() {
+    var fEl = document.getElementById('board-from');
+    var tEl = document.getElementById('board-to');
+    return { from: (fEl && fEl.value) || '', to: (tEl && tEl.value) || '' };
+  }
+  function filterByDate(list, range) {
+    if (!range || (!range.from && !range.to)) return list.slice();
+    return list.filter(function (e) {
+      var ymd = entryManilaYmd(e);
+      if (!ymd) return false;
+      if (range.from && ymd < range.from) return false;
+      if (range.to && ymd > range.to) return false;
+      return true;
+    });
+  }
+  function countUndated(list) {
+    var n = 0;
+    list.forEach(function (e) { if (!entryManilaYmd(e)) n += 1; });
+    return n;
+  }
+  function setDatePreset(name) {
+    var from = document.getElementById('board-from');
+    var to = document.getElementById('board-to');
+    if (!from || !to) return;
+    document.querySelectorAll('.date-preset').forEach(function (b) {
+      b.classList.toggle('on', b.getAttribute('data-preset') === name);
+    });
+    if (name === 'all') {
+      from.value = '';
+      to.value = '';
+    } else if (name === 'week') {
+      var w = manilaWeekRange();
+      from.value = w.from;
+      to.value = w.to;
+    }
+  }
+  function syncDatePresetButtons() {
+    var range = currentDateRange();
+    var w = manilaWeekRange();
+    var preset = '';
+    if (!range.from && !range.to) preset = 'all';
+    else if (range.from === w.from && range.to === w.to) preset = 'week';
+    document.querySelectorAll('.date-preset').forEach(function (b) {
+      b.classList.toggle('on', preset !== '' && b.getAttribute('data-preset') === preset);
+    });
+  }
+
   function renderBoard(entries, filter) {
     const tb = $('board-body');
     tb.innerHTML = '';
-    let list = entries.slice();
+    const dateRange = currentDateRange();
+    const ranged = filterByDate(entries.slice(), dateRange);
+    const undatedHidden = (!dateRange.from && !dateRange.to) ? 0 : countUndated(entries);
+    let list = ranged;
     if (filter === '11') list = list.filter((e) => String(e.grade) === '11');
     if (filter === '12') list = list.filter((e) => String(e.grade) === '12');
     list = sortBoard(list);
     var isGrade = (filter === '11' || filter === '12');
     var shown = isGrade ? list : list.slice(0, 10);
     var cap = document.getElementById('board-caption');
+    var rangeLabel = prettyDateRange(dateRange.from, dateRange.to);
+    var undatedNote = undatedHidden ? (' · ' + undatedHidden + ' without a date in All time only') : '';
     if (cap) {
       if (!list.length) {
-        cap.textContent = isGrade ? ('Grade ' + filter + ' · no scores yet') : 'Overall · no scores yet';
+        cap.textContent = (dateRange.from || dateRange.to ? 'No scores in this date range' : (isGrade ? ('Grade ' + filter + ' · no scores yet') : 'Overall · no scores yet')) + ' · ' + rangeLabel + undatedNote;
       } else if (isGrade) {
-        cap.textContent = 'Grade ' + filter + ' · all ' + list.length + ' player' + (list.length === 1 ? '' : 's');
+        cap.textContent = 'Grade ' + filter + ' · all ' + list.length + ' player' + (list.length === 1 ? '' : 's') + ' · ' + rangeLabel + undatedNote;
       } else {
-        cap.textContent = 'Overall · Top 10' + (list.length > 10 ? ' of ' + list.length : '');
+        cap.textContent = 'Overall · Top 10' + (list.length > 10 ? ' of ' + list.length : '') + ' · ' + rangeLabel + undatedNote;
       }
     }
     if (!list.length) {
-      tb.innerHTML = '<tr><td colspan="5" class="muted">No scores yet. Be the first!</td></tr>';
+      tb.innerHTML = '<tr><td colspan="5" class="muted">' + (dateRange.from || dateRange.to ? 'No scores in this date range' : 'No scores yet') + '</td></tr>';
       return;
     }
     shown.forEach((e, i) => {
@@ -1387,11 +1488,32 @@
   $('btn-go-board').onclick = async () => {
     show('board');
     $('board-body').innerHTML = '<tr><td colspan="5">Loading…</td></tr>';
-    renderBoard(await fetchBoard(), $('board-filter').value);
+    lastBoardEntries = await fetchBoard();
+    renderBoard(lastBoardEntries, $('board-filter').value);
   };
-  $('board-filter').onchange = async () => {
-    renderBoard(await fetchBoard(), $('board-filter').value);
+  $('board-filter').onchange = () => {
+    renderBoard(lastBoardEntries, $('board-filter').value);
   };
+
+  var datesEl = document.getElementById('board-dates');
+  if (datesEl && !datesEl.getAttribute('data-bound')) {
+    datesEl.setAttribute('data-bound', '1');
+    datesEl.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.date-preset');
+      if (!btn) return;
+      setDatePreset(btn.getAttribute('data-preset'));
+      renderBoard(lastBoardEntries, $('board-filter').value);
+    });
+    ['board-from', 'board-to'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', function () {
+        syncDatePresetButtons();
+        renderBoard(lastBoardEntries, $('board-filter').value);
+      });
+    });
+  }
+
   $('btn-board-back').onclick = () => show('start');
 
   $('btn-next').onclick = () => {

@@ -2,9 +2,11 @@
 (function () {
   'use strict';
 
-  const API_NS = 'bnhs-iracer-nov10-2026';
+  const PREV_API_NS = 'bnhs-iracer-nov10-2026';
+  const API_NS = 'bnhs-iracer-nov13-2026';
   const API = 'https://mantledb.sh/v2/' + API_NS;
   const API_EXPORT = 'https://mantledb.sh/v2/export/' + API_NS;
+  const PREV_API_EXPORT = 'https://mantledb.sh/v2/export/' + PREV_API_NS;
   // Same Apps Script endpoint as ADM Portal (read-only action=config → learners)
   const ADM_API =
     'https://script.google.com/macros/s/AKfycbwGMSP8NmPT4GYMJZTw4qruizfFd5wzORZHZRM-HOUJOSQyyg3Gx20L5MEWsqT5EFdl-w/exec';
@@ -25,10 +27,10 @@
     location.hash === '#demo';
 
   const SESSION_LABEL = 'ADM Activity · Nov. 13, 2026';
-  const SESSION_DATE = 'Nov. 10, 2026';
-  const SESSION_ISO = '2026-11-10';
-  const SESSION_KEY = 'nov10';
-  // Scored play for the Nov. 10 ADM activity stays in the same score namespace.
+  const SESSION_DATE = 'Nov. 13, 2026';
+  const SESSION_ISO = '2026-11-13';
+  const SESSION_KEY = 'nov13';
+  // Nov 13 scored play uses the nov13 namespace. The nov10 namespace is read-only for leaderboards.
   // Window (Asia/Manila): Nov 9, 2026 12:00 AM through Nov 13, 2026 11:59 PM. Demo always works. 1-try rule unchanged.
   const OPEN_FROM_MS = Date.parse('2026-11-09T00:00:00+08:00');
   const OPEN_UNTIL_MS = Date.parse('2026-11-13T23:59:59.999+08:00');
@@ -313,7 +315,7 @@
 
   function loadLocal() {
     try {
-      const raw = localStorage.getItem('ir-progress-nov10-' + keyOf(player));
+      const raw = localStorage.getItem('ir-progress-nov13-' + keyOf(player));
       if (raw) {
         const p = JSON.parse(raw);
         progress.attemptsUsed = Math.max(0, Number(p.attemptsUsed) || 0);
@@ -337,7 +339,7 @@
   }
   function saveLocal() {
     try {
-      localStorage.setItem('ir-progress-nov10-' + keyOf(player), JSON.stringify(progress));
+      localStorage.setItem('ir-progress-nov13-' + keyOf(player), JSON.stringify(progress));
     } catch (e) {}
   }
 
@@ -417,29 +419,33 @@
 
   async function fetchBoard() {
     try {
-      const r = await fetch(API_EXPORT + '?t=' + Date.now());
-      const j = await r.json();
+      const urls = [API_EXPORT, PREV_API_EXPORT];
       const entries = [];
-      const bag = (j && j.entries) || {};
-      Object.keys(bag).forEach((path) => {
-        if (path.indexOf('scores/') === 0 && bag[path] && bag[path].name) entries.push(bag[path]);
-      });
-      return entries.filter((e) => Number(e.total) <= MAX_PLAUSIBLE);
-    } catch (e) {
-      try {
-        return JSON.parse(localStorage.getItem('ir-local-board-nov10') || '[]');
-      } catch (e2) {
-        return [];
+      for (var i = 0; i < urls.length; i++) {
+        try {
+          const r = await fetch(urls[i] + '?t=' + Date.now());
+          if (!r || !r.ok) continue;
+          const j = await r.json();
+          const bag = (j && j.entries) || {};
+          Object.keys(bag).forEach(function (path) {
+            if (path.indexOf('scores/') === 0 && bag[path] && bag[path].name) entries.push(bag[path]);
+          });
+        } catch (ignore) {}
       }
+      if (entries.length) return entries.filter(function (e) { return Number(e.total) <= MAX_PLAUSIBLE; });
+    } catch (e) {}
+    try {
+      return JSON.parse(localStorage.getItem('ir-local-board-nov13') || '[]');
+    } catch (e2) {
+      return [];
     }
   }
-
-  async function submitRecord(entry) {
-    const local = JSON.parse(localStorage.getItem('ir-local-board-nov10') || '[]');
+async function submitRecord(entry) {
+    const local = JSON.parse(localStorage.getItem('ir-local-board-nov13') || '[]');
     const idx = local.findIndex((e) => norm(e.name) === norm(entry.name) && String(e.grade) === String(entry.grade));
     if (idx >= 0) local[idx] = entry;
     else local.push(entry);
-    localStorage.setItem('ir-local-board-nov10', JSON.stringify(local));
+    localStorage.setItem('ir-local-board-nov13', JSON.stringify(local));
 
     try {
       const path = API + '/scores/' + keyOf(entry);
@@ -490,7 +496,7 @@
 
   /* ---- Reliable upload: pending queue + retry (added Nov 6 2026) ---- */
   var remoteConfirmed = false;
-  function pendingKey(p) { return 'ir-pending-nov10-' + keyOf(p); }
+  function pendingKey(p) { return 'ir-pending-nov13-' + keyOf(p); }
   function setPending(entry) {
     if (DEMO) return;
     try { localStorage.setItem(pendingKey(entry), JSON.stringify(entry)); } catch (e) {}
@@ -521,7 +527,7 @@
     try {
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
-        if (k && k.indexOf('ir-pending-nov10-') === 0) keys.push(k);
+        if (k && k.indexOf('ir-pending-nov13-') === 0) keys.push(k);
       }
       for (var j = 0; j < keys.length; j++) {
         var e = null;
@@ -594,7 +600,11 @@
     }
   }
   function entryManilaYmd(e) {
-    return e ? manilaYmdFromMs(e.ts) : '';
+    var ymd = e ? manilaYmdFromMs(e.ts) : '';
+    if (ymd) return ymd;
+    var d = e && e.date;
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(String(d))) return String(d);
+    return '';
   }
   function ymdParts(ymd) {
     var m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);

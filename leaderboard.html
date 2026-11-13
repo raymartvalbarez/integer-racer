@@ -120,7 +120,8 @@ td.lvl{font-weight:700;color:#81d4fa}
 <script>
 (function () {
   'use strict';
-  const API_EXPORT = 'https://mantledb.sh/v2/export/bnhs-iracer-nov10-2026';
+  const API_EXPORT = 'https://mantledb.sh/v2/export/bnhs-iracer-nov13-2026';
+  const PREV_API_EXPORT = 'https://mantledb.sh/v2/export/bnhs-iracer-nov10-2026';
   const MAX_PLAUSIBLE = 5000;
   const MEDALS = ['', '🥇', '🥈', '🥉'];
   const REFRESH_MS = 18000;
@@ -142,7 +143,11 @@ td.lvl{font-weight:700;color:#81d4fa}
     }
   }
   function entryManilaYmd(e) {
-    return e ? manilaYmdFromMs(e.ts) : '';
+    var ymd = e ? manilaYmdFromMs(e.ts) : '';
+    if (ymd) return ymd;
+    var d = e && e.date;
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(String(d))) return String(d);
+    return '';
   }
   function ymdParts(ymd) {
     var m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -304,12 +309,18 @@ td.lvl{font-weight:700;color:#81d4fa}
   async function load() {
     var entries = [];
     try {
-      var r = await fetch(API_EXPORT + '?t=' + Date.now(), { cache: 'no-store' });
-      var j = await r.json();
-      var bag = (j && j.entries) || {};
-      Object.keys(bag).forEach(function (path) {
-        if (path.indexOf('scores/') === 0 && bag[path] && bag[path].name) entries.push(bag[path]);
-      });
+      var urls = [API_EXPORT, PREV_API_EXPORT];
+      for (var u = 0; u < urls.length; u++) {
+        try {
+          var r = await fetch(urls[u] + '?t=' + Date.now(), { cache: 'no-store' });
+          if (!r || !r.ok) continue;
+          var j = await r.json();
+          var bag = (j && j.entries) || {};
+          Object.keys(bag).forEach(function (path) {
+            if (path.indexOf('scores/') === 0 && bag[path] && bag[path].name) entries.push(bag[path]);
+          });
+        } catch (ignore) {}
+      }
       entries = entries.filter(function (e) { return Number(e.total) <= MAX_PLAUSIBLE; });
     } catch (err) {
       document.getElementById('updated').textContent = 'offline / error';

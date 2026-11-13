@@ -24,7 +24,7 @@
     /(?:\?|&)(?:demo|test)=1(?:&|$)/.test(location.search || '') ||
     location.hash === '#demo';
 
-  const SESSION_LABEL = 'ADM Activity · Nov. 10, 2026';
+  const SESSION_LABEL = 'ADM Activity · Nov. 13, 2026';
   const SESSION_DATE = 'Nov. 10, 2026';
   const SESSION_ISO = '2026-11-10';
   const SESSION_KEY = 'nov10';
@@ -39,7 +39,7 @@
 
 
   function sessionClosedMessage() {
-    return 'This Nov. 10 ADM activity is open through Nov. 13, 2026, 11:59 PM (Asia/Manila). Use ?demo=1 to practice anytime.';
+    return 'This ADM activity is open through Nov. 13, 2026, 11:59 PM (Asia/Manila). Use ?demo=1 to practice anytime.';
   }
 
 
@@ -1448,7 +1448,7 @@
     hint.className = 'note';
     hint.textContent = oa
       ? 'Your phone saved your place. You cannot restart from Level 1.'
-      : '1 try only · 5 levels × 20 items (100 total) · Leaderboard saves your best · Nov. 10 games, open through Nov. 13.';
+      : '1 try only · 5 levels × 20 items (100 total) · Leaderboard saves your best · ADM Activity · Nov. 13, 2026.';
     box.appendChild(hint);
   }
 

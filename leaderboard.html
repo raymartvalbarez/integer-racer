@@ -50,7 +50,7 @@ td.lvl{font-weight:700;color:#81d4fa}
 .foot{margin-top:14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.78rem;opacity:.85}
 .foot a{color:#ffe566;font-weight:700;text-decoration:none}
 
-.table-wrap{max-height:min(52vh,28rem);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin-top:2px}
+.table-wrap{overflow-x:auto;margin-top:2px}
 .table-wrap table thead th{position:sticky;top:0;z-index:1;background:rgba(8,16,24,.96)}
 .shown-note{margin:8px 0 0;font-size:.75rem;opacity:.8;text-align:center}
 
@@ -67,7 +67,7 @@ td.lvl{font-weight:700;color:#81d4fa}
   .date-preset{flex:1}
 }
 @media (max-width:900px){
-  .table-wrap{max-height:min(60vh,32rem)}
+  .table-wrap{}
 }
 @media (max-width:900px){
   .grid{grid-template-columns:1fr}

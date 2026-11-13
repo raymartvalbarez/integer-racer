@@ -1611,6 +1611,15 @@
     setTimeout(() => { clearInterval(waitLearners); kick(); }, 4000);
   }
 
+  function applySessionLabel() {
+    var small = document.querySelector('header.app h1 small');
+    if (small) small.textContent = SESSION_LABEL;
+    var badge = document.querySelector('.hero .badge');
+    if (badge) badge.textContent = SESSION_LABEL;
+  }
+  applySessionLabel();
+  window.addEventListener('pageshow', applySessionLabel);
+
   loadLearners();
   Sound.paintBtn();
   const btnSound = $('btn-sound');

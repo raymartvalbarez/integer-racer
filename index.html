@@ -101,12 +101,17 @@ td.lvl{font-weight:700;color:#0d47a1}
 #board-caption{margin:0 0 6px;font-size:.8rem;color:#555;font-weight:700}
 #screen-board table{font-size:.84rem}
 #screen-board th:nth-child(3),#screen-board td.gs{font-size:.78rem;color:#555}
+
+#closed-msg{text-align:center;padding:14px 12px;margin:4px 0 12px;background:#fff3e0;border:2px solid #ef6c00;border-radius:14px}
+#closed-msg strong{display:block;font-size:1.15rem;color:#e65100;margin-bottom:6px}
+#closed-msg .tag{margin-top:0;color:#6d4c41}
+#play-form[hidden]{display:none!important}
 </style>
 </head>
 <body>
 <header class="app">
   <div class="logo">IR</div>
-  <h1>Integer Racer<small>ADM Activity · Nov. 13, 2026</small></h1>
+  <h1>Integer Racer<small>This game is closed</small></h1>
   <button type="button" id="btn-sound" title="Music &amp; sound" aria-label="Toggle sound"
     style="margin-left:auto;background:#f5c518;color:#062a1f;border:0;border-radius:999px;padding:8px 12px;font-weight:800;font-size:.85rem;box-shadow:0 2px 0 #c9a012">🔊 On</button>
 </header>
@@ -114,10 +119,13 @@ td.lvl{font-weight:700;color:#0d47a1}
 <section id="screen-start" class="screen active">
   <div class="card">
     <div class="hero">
-      <div class="badge">ADM Activity · Nov. 13, 2026</div>
-      <strong>Drive. Hit the correct integer.</strong>
-      <div class="tag">Climb the school leaderboard · 1 try only</div>
+      <div class="badge">Closed</div>
     </div>
+    <div id="closed-msg">
+      <strong>This game is closed.</strong>
+      <div class="tag">You can still view the leaderboard. All saved scores are kept.</div>
+    </div>
+    <div id="play-form" hidden>
     <label for="inp-grade">Grade</label>
     <select id="inp-grade">
       <option value="">Loading…</option>
@@ -132,9 +140,10 @@ td.lvl{font-weight:700;color:#0d47a1}
     </select>
     <div id="load-status">Loading class list…</div>
     <button class="primary" id="btn-play" disabled>Continue</button>
+    </div>
     <button class="secondary" id="btn-go-board">Leaderboard</button>
-    <p class="note">1 try only · 5 levels × 20 items (100 total) · 3 lives per level (lose them → next level with fresh lives) · Wrong hits never show the answer.</p>
-    <div id="levels-wrap" style="display:none;margin-top:12px">
+    <p class="note" hidden>1 try only · 5 levels × 20 items (100 total) · 3 lives per level (lose them → next level with fresh lives) · Wrong hits never show the answer.</p>
+    <div id="levels-wrap" hidden style="display:none;margin-top:12px">
       <div id="player-label"></div>
       <div id="level-btns"></div>
     </div>
@@ -207,6 +216,6 @@ td.lvl{font-weight:700;color:#0d47a1}
 </section>
 
 <script src="questions.js?v=20261112lb"></script>
-<script src="game.js?v=20261113c"></script>
+<script src="game.js?v=20261116a"></script>
 </body>
 </html>

@@ -81,7 +81,7 @@ td.lvl{font-weight:700;color:#81d4fa}
 <div class="top">
   <div class="brand">
     <div class="logo">IR</div>
-    <h1>Integer Racer Leaderboard<small>ADM Activity · Nov. 18, 2026 · Bago NHS</small></h1>
+    <h1>Integer Racer Leaderboard<small>ADM Activity · Nov. 25, 2026 · Bago NHS</small></h1>
   </div>
   <div class="meta">
     <div>Last updated: <strong id="updated">—</strong></div>
@@ -120,7 +120,8 @@ td.lvl{font-weight:700;color:#81d4fa}
 <script>
 (function () {
   'use strict';
-  const API_EXPORT = 'https://mantledb.sh/v2/export/bnhs-iracer-nov18-2026';
+  const API_EXPORT = 'https://mantledb.sh/v2/export/bnhs-iracer-nov25-2026';
+  const PREV_API_EXPORT_18 = 'https://mantledb.sh/v2/export/bnhs-iracer-nov18-2026';
   const PREV_API_EXPORT_13 = 'https://mantledb.sh/v2/export/bnhs-iracer-nov13-2026';
   const PREV_API_EXPORT = 'https://mantledb.sh/v2/export/bnhs-iracer-nov10-2026';
   const MAX_PLAUSIBLE = 5000;
@@ -321,7 +322,7 @@ td.lvl{font-weight:700;color:#81d4fa}
   async function load() {
     var entries = [];
     try {
-      var urls = [API_EXPORT, PREV_API_EXPORT_13, PREV_API_EXPORT];
+      var urls = [API_EXPORT, PREV_API_EXPORT_18, PREV_API_EXPORT_13, PREV_API_EXPORT];
       for (var u = 0; u < urls.length; u++) {
         try {
           var r = await fetch(urls[u] + '?t=' + Date.now(), { cache: 'no-store' });

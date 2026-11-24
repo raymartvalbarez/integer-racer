@@ -2,13 +2,15 @@
 (function () {
   'use strict';
 
-  const PREV_API_NS = 'bnhs-iracer-nov13-2026';
-  const PREV2_API_NS = 'bnhs-iracer-nov10-2026';
-  const API_NS = 'bnhs-iracer-nov18-2026';
+  const PREV_API_NS = 'bnhs-iracer-nov18-2026';
+  const PREV2_API_NS = 'bnhs-iracer-nov13-2026';
+  const PREV3_API_NS = 'bnhs-iracer-nov10-2026';
+  const API_NS = 'bnhs-iracer-nov25-2026';
   const API = 'https://mantledb.sh/v2/' + API_NS;
   const API_EXPORT = 'https://mantledb.sh/v2/export/' + API_NS;
   const PREV_API_EXPORT = 'https://mantledb.sh/v2/export/' + PREV_API_NS;
   const PREV2_API_EXPORT = 'https://mantledb.sh/v2/export/' + PREV2_API_NS;
+  const PREV3_API_EXPORT = 'https://mantledb.sh/v2/export/' + PREV3_API_NS;
   // Same Apps Script endpoint as ADM Portal (read-only action=config → learners)
   const ADM_API =
     'https://script.google.com/macros/s/AKfycbwGMSP8NmPT4GYMJZTw4qruizfFd5wzORZHZRM-HOUJOSQyyg3Gx20L5MEWsqT5EFdl-w/exec';
@@ -28,14 +30,14 @@
     /(?:\?|&)(?:demo|test)=1(?:&|$)/.test(location.search || '') ||
     location.hash === '#demo';
 
-  const SESSION_LABEL = 'ADM Activity · Nov. 18, 2026';
-  const SESSION_DATE = 'Nov. 18, 2026';
-  const SESSION_ISO = '2026-11-18';
-  const SESSION_KEY = 'nov18';
-  // Nov 18 scored play uses the nov18 namespace. The nov13 and earlier namespaces are read-only for leaderboards.
-  // Window (Asia/Manila): Nov 18, 2026 12:00 AM through Nov 18, 2026 11:59 PM. Demo always works. 1-try rule unchanged.
-  const OPEN_FROM_MS = Date.parse('2026-11-18T00:00:00+08:00');
-  const OPEN_UNTIL_MS = Date.parse('2026-11-18T23:59:59.999+08:00');
+  const SESSION_LABEL = 'ADM Activity · Nov. 25, 2026';
+  const SESSION_DATE = 'Nov. 25, 2026';
+  const SESSION_ISO = '2026-11-25';
+  const SESSION_KEY = 'nov25';
+  // Nov 25 scored play uses the nov25 namespace. The nov18 and earlier namespaces are read-only for leaderboards.
+  // Window (Asia/Manila): Nov 25, 2026 12:00 AM through Nov 25, 2026 11:59 PM. Demo always works. 1-try rule unchanged.
+  const OPEN_FROM_MS = Date.parse('2026-11-25T00:00:00+08:00');
+  const OPEN_UNTIL_MS = Date.parse('2026-11-25T23:59:59.999+08:00');
   function isSessionOpen() {
     var now = Date.now();
     return now >= OPEN_FROM_MS && now <= OPEN_UNTIL_MS;
@@ -43,7 +45,7 @@
 
 
   function sessionClosedMessage() {
-    return 'This ADM activity is open through Nov. 18, 2026, 11:59 PM (Asia/Manila). Use ?demo=1 to practice anytime.';
+    return 'This ADM activity is open through Nov. 25, 2026, 11:59 PM (Asia/Manila). Use ?demo=1 to practice anytime.';
   }
 
 
@@ -317,7 +319,7 @@
 
   function loadLocal() {
     try {
-      const raw = localStorage.getItem('ir-progress-nov18-' + keyOf(player));
+      const raw = localStorage.getItem('ir-progress-nov25-' + keyOf(player));
       if (raw) {
         const p = JSON.parse(raw);
         progress.attemptsUsed = Math.max(0, Number(p.attemptsUsed) || 0);
@@ -341,7 +343,7 @@
   }
   function saveLocal() {
     try {
-      localStorage.setItem('ir-progress-nov18-' + keyOf(player), JSON.stringify(progress));
+      localStorage.setItem('ir-progress-nov25-' + keyOf(player), JSON.stringify(progress));
     } catch (e) {}
   }
 
@@ -421,7 +423,7 @@
 
   async function fetchBoard() {
     try {
-      const urls = [API_EXPORT, PREV_API_EXPORT, PREV2_API_EXPORT];
+      const urls = [API_EXPORT, PREV_API_EXPORT, PREV2_API_EXPORT, PREV3_API_EXPORT];
       const entries = [];
       for (var i = 0; i < urls.length; i++) {
         try {
@@ -437,17 +439,17 @@
       if (entries.length) return entries.filter(function (e) { return Number(e.total) <= MAX_PLAUSIBLE; });
     } catch (e) {}
     try {
-      return JSON.parse(localStorage.getItem('ir-local-board-nov18') || '[]');
+      return JSON.parse(localStorage.getItem('ir-local-board-nov25') || '[]');
     } catch (e2) {
       return [];
     }
   }
 async function submitRecord(entry) {
-    const local = JSON.parse(localStorage.getItem('ir-local-board-nov18') || '[]');
+    const local = JSON.parse(localStorage.getItem('ir-local-board-nov25') || '[]');
     const idx = local.findIndex((e) => norm(e.name) === norm(entry.name) && String(e.grade) === String(entry.grade));
     if (idx >= 0) local[idx] = entry;
     else local.push(entry);
-    localStorage.setItem('ir-local-board-nov18', JSON.stringify(local));
+    localStorage.setItem('ir-local-board-nov25', JSON.stringify(local));
 
     try {
       const path = API + '/scores/' + keyOf(entry);
@@ -498,7 +500,7 @@ async function submitRecord(entry) {
 
   /* ---- Reliable upload: pending queue + retry (added Nov 6 2026) ---- */
   var remoteConfirmed = false;
-  function pendingKey(p) { return 'ir-pending-nov18-' + keyOf(p); }
+  function pendingKey(p) { return 'ir-pending-nov25-' + keyOf(p); }
   function setPending(entry) {
     if (DEMO) return;
     try { localStorage.setItem(pendingKey(entry), JSON.stringify(entry)); } catch (e) {}
@@ -529,7 +531,7 @@ async function submitRecord(entry) {
     try {
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
-        if (k && k.indexOf('ir-pending-nov18-') === 0) keys.push(k);
+        if (k && k.indexOf('ir-pending-nov25-') === 0) keys.push(k);
       }
       for (var j = 0; j < keys.length; j++) {
         var e = null;
@@ -1471,7 +1473,7 @@ async function submitRecord(entry) {
     hint.className = 'note';
     hint.textContent = oa
       ? 'Your phone saved your place. You cannot restart from Level 1.'
-      : '1 try only · 5 levels × 20 items (100 total) · Leaderboard saves your best · ADM Activity · Nov. 18, 2026.';
+      : '1 try only · 5 levels × 20 items (100 total) · Leaderboard saves your best · ADM Activity · Nov. 25, 2026.';
     box.appendChild(hint);
   }
 
